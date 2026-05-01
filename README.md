@@ -7,7 +7,7 @@ Webapp Next.js App Router para administrar y publicar un cancionero digital con 
 - Next.js 16 App Router
 - TypeScript
 - Prisma ORM 7
-- MariaDB/MySQL en XAMPP, puerto `3307`
+- MariaDB/MySQL en XAMPP, puerto `3306`
 - TailwindCSS 4
 - Auth.js / NextAuth con credenciales
 - bcrypt
@@ -30,7 +30,7 @@ cp .env.example .env
 Variables usadas localmente:
 
 ```env
-DATABASE_URL="mysql://root@127.0.0.1:3307/cancionero"
+DATABASE_URL="mysql://root@127.0.0.1:3306/cancionero"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="replace-with-a-long-random-secret"
 ```
@@ -38,7 +38,7 @@ NEXTAUTH_SECRET="replace-with-a-long-random-secret"
 3. Crear base de datos si no existe:
 
 ```bash
-/Applications/XAMPP/xamppfiles/bin/mysql -h 127.0.0.1 -P 3307 -u root -e "CREATE DATABASE IF NOT EXISTS cancionero CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+/Applications/XAMPP/xamppfiles/bin/mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS cancionero CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
 ## Prisma
