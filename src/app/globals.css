@@ -107,6 +107,24 @@ textarea {
   box-shadow: 0 10px 25px rgb(28 25 23 / 0.12);
 }
 
+.category-tree-row {
+  padding-left: min(calc(var(--depth) * 0.65rem + 0.25rem), 2rem);
+}
+
+.category-song-row {
+  padding-left: min(calc((var(--depth) + 1) * 0.65rem + 0.25rem), 2.25rem);
+}
+
+@media (min-width: 640px) {
+  .category-tree-row {
+    padding-left: calc(var(--depth) * 1rem + 0.5rem);
+  }
+
+  .category-song-row {
+    padding-left: calc((var(--depth) + 1) * 1rem + 0.75rem);
+  }
+}
+
 .lyrics-line {
   display: block;
   overflow-wrap: anywhere;

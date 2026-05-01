@@ -5,6 +5,7 @@ import { ClipboardPaste, Plus, X } from "lucide-react";
 import type { AdminCategory } from "@/lib/catalog";
 import { contentFromPlainLyrics } from "@/lib/plain-lyrics";
 import type { SongEditorDraft } from "@/components/admin/song-editor";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 type SongCreateModalProps = {
   categories: AdminCategory[];
@@ -22,6 +23,16 @@ export function SongCreateModal({ categories, onClose, onCreateDraft }: SongCrea
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
     [categories],
+  );
+  const categoryOptions = useMemo<CustomSelectOption[]>(
+    () => [
+      { value: "", label: "Sin categoria" },
+      ...sortedCategories.map((category) => ({
+        value: String(category.id),
+        label: category.name,
+      })),
+    ],
+    [sortedCategories],
   );
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -79,21 +90,12 @@ export function SongCreateModal({ categories, onClose, onCreateDraft }: SongCrea
           </label>
 
           <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-            <label className="grid gap-2 text-sm font-medium text-stone-800">
-              Categoria
-              <select
-                value={categoryId ?? ""}
-                onChange={(event) => setCategoryId(event.target.value ? Number(event.target.value) : null)}
-                className="h-11 rounded-md border border-stone-300 px-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              >
-                <option value="">Sin categoria</option>
-                {sortedCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <CustomSelect
+              label="Categoria"
+              value={categoryId ? String(categoryId) : ""}
+              options={categoryOptions}
+              onChange={(value) => setCategoryId(value ? Number(value) : null)}
+            />
 
             <div className="grid grid-cols-2 gap-2 self-end">
               <label className="flex h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium text-stone-800">

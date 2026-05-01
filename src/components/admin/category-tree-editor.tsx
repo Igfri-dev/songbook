@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { AdminCategory, AdminSnapshot } from "@/lib/catalog";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 type LocalLink = {
   id: number;
@@ -31,6 +32,10 @@ type LocalSong = {
 type TreeNode = AdminCategory & {
   children: TreeNode[];
   songs: (LocalSong & { linkId: number; sortOrder: number })[];
+};
+
+type TreeDepthStyle = CSSProperties & {
+  "--depth": number;
 };
 
 type OrderPayload = {
@@ -72,6 +77,7 @@ export function CategoryTreeEditor({
   const [selectedId, setSelectedId] = useState<number | null>(snapshot.categories[0]?.id ?? null);
   const [newName, setNewName] = useState("");
   const [selectedSongId, setSelectedSongId] = useState<number | "">("");
+  const [selectedCategorySongId, setSelectedCategorySongId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   const songs = useMemo<LocalSong[]>(
@@ -90,6 +96,51 @@ export function CategoryTreeEditor({
   const tree = useMemo(() => buildTree(categories, links, songs), [categories, links, songs]);
   const selectedCategory = categories.find((category) => category.id === selectedId) ?? null;
   const unassignedSongs = songs.filter((song) => !links.some((link) => link.songId === song.id));
+  const categoryNameById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category.name])),
+    [categories],
+  );
+  const songOptions = useMemo<CustomSelectOption[]>(
+    () => [
+      { value: "", label: "Seleccionar cancion" },
+      ...songs.map((song) => {
+        const link = links.find((item) => item.songId === song.id);
+        const location = link ? `En ${categoryNameById.get(link.categoryId) ?? "carpeta"}` : "Sin carpeta";
+
+        return {
+          value: String(song.id),
+          label: song.title,
+          description: `${location} - ${song.isPublished ? "Publicada" : "Borrador"}`,
+        };
+      }),
+    ],
+    [categoryNameById, links, songs],
+  );
+
+  function selectSongForMove(songId: number, categorySongId: number | null) {
+    setSelectedSongId(songId);
+    setSelectedCategorySongId(categorySongId);
+  }
+
+  function selectSongFromDropdown(value: string) {
+    if (!value) {
+      setSelectedSongId("");
+      setSelectedCategorySongId(null);
+      return;
+    }
+
+    const songId = Number(value);
+    const firstLink = links.find((link) => link.songId === songId);
+    selectSongForMove(songId, firstLink?.id ?? null);
+  }
+
+  async function assignSelectedSong() {
+    if (!selectedSongId || !selectedId) {
+      return;
+    }
+
+    await onAssignSong(Number(selectedSongId), selectedId, selectedCategorySongId ?? undefined);
+  }
 
   function moveCategory(categoryId: number, direction: -1 | 1) {
     const category = categories.find((item) => item.id === categoryId);
@@ -202,25 +253,27 @@ export function CategoryTreeEditor({
   }
 
   return (
-    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="rounded-lg border border-stone-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 p-4">
-          <div>
+    <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0 rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div className="grid gap-3 border-b border-stone-200 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold text-stone-950">{title}</h2>
-            <p className="mt-1 text-sm text-stone-600">Arrastra carpetas o canciones sobre otra carpeta para moverlas.</p>
+            <p className="mt-1 text-sm text-stone-600">
+              En escritorio puedes arrastrar. En movil, toca una carpeta o cancion y usa los controles laterales.
+            </p>
           </div>
           <button
             type="button"
             onClick={saveOrder}
             disabled={saving}
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white hover:bg-stone-700 disabled:bg-stone-400"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white hover:bg-stone-700 disabled:bg-stone-400 sm:w-auto"
           >
             <Save aria-hidden="true" size={16} />
             {saving ? "Guardando..." : "Guardar orden"}
           </button>
         </div>
 
-        <div className="grid gap-1 p-3">
+        <div className="grid min-w-0 gap-1 p-2 sm:p-3">
           {tree.length > 0 ? (
             tree.map((node) => (
               <EditableCategoryNode
@@ -232,6 +285,8 @@ export function CategoryTreeEditor({
                 onDropPayload={handleDrop}
                 onMoveCategory={moveCategory}
                 onMoveLink={moveLink}
+                onSelectSongForMove={selectSongForMove}
+                selectedCategorySongId={selectedCategorySongId}
                 onRemoveAssignment={onRemoveAssignment}
               />
             ))
@@ -241,7 +296,7 @@ export function CategoryTreeEditor({
         </div>
       </div>
 
-      <aside className="grid gap-4">
+      <aside className="grid min-w-0 gap-4">
         <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="font-semibold text-stone-950">Crear carpeta</h3>
           <div className="mt-3 grid gap-2">
@@ -251,7 +306,7 @@ export function CategoryTreeEditor({
               className="h-10 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               placeholder="Nombre"
             />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
                 disabled={!newName.trim()}
@@ -301,26 +356,19 @@ export function CategoryTreeEditor({
         <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="font-semibold text-stone-950">Mover canciones</h3>
           <div className="mt-3 grid gap-2">
-            <select
-              value={selectedSongId}
-              onChange={(event) => setSelectedSongId(event.target.value ? Number(event.target.value) : "")}
-              className="h-10 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600"
-            >
-              <option value="">Seleccionar cancion</option>
-              {songs.map((song) => (
-                <option key={song.id} value={song.id}>
-                  {song.title}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={selectedSongId ? String(selectedSongId) : ""}
+              options={songOptions}
+              onChange={selectSongFromDropdown}
+            />
             <button
               type="button"
               disabled={!selectedSongId || !selectedId}
-              onClick={() => selectedSongId && selectedId && onAssignSong(Number(selectedSongId), selectedId)}
+              onClick={assignSelectedSong}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:bg-stone-400"
             >
               <Music aria-hidden="true" size={16} />
-              Asignar al grupo
+              {selectedCategorySongId ? "Mover al grupo" : "Asignar al grupo"}
             </button>
           </div>
 
@@ -332,13 +380,18 @@ export function CategoryTreeEditor({
                   key={song.id}
                   type="button"
                   draggable
+                  onClick={() => selectSongForMove(song.id, null)}
                   onDragStart={(event) => {
                     event.dataTransfer.setData("text/plain", JSON.stringify({ type: "song", songId: song.id }));
                   }}
-                  className="flex min-h-9 items-center gap-2 rounded-md border border-stone-200 px-2 text-left text-sm text-stone-700 hover:bg-stone-50"
+                  className={`flex min-h-10 min-w-0 items-center gap-2 rounded-md border px-2 text-left text-sm text-stone-700 hover:bg-stone-50 ${
+                    selectedSongId === song.id && selectedCategorySongId === null
+                      ? "border-emerald-300 bg-emerald-50"
+                      : "border-stone-200"
+                  }`}
                 >
-                  <GripVertical aria-hidden="true" size={14} className="text-stone-400" />
-                  {song.title}
+                  <GripVertical aria-hidden="true" size={14} className="hidden shrink-0 text-stone-400 sm:block" />
+                  <span className="min-w-0 truncate">{song.title}</span>
                 </button>
               ))}
             </div>
@@ -357,6 +410,8 @@ function EditableCategoryNode({
   onDropPayload,
   onMoveCategory,
   onMoveLink,
+  onSelectSongForMove,
+  selectedCategorySongId,
   onRemoveAssignment,
 }: {
   node: TreeNode;
@@ -366,10 +421,12 @@ function EditableCategoryNode({
   onDropPayload: (targetCategoryId: number, encoded: string) => void;
   onMoveCategory: (id: number, direction: -1 | 1) => void;
   onMoveLink: (id: number, direction: -1 | 1) => void;
+  onSelectSongForMove: (songId: number, categorySongId: number) => void;
+  selectedCategorySongId: number | null;
   onRemoveAssignment: (id: number) => Promise<void>;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div
         draggable
         onDragStart={(event) => {
@@ -380,12 +437,12 @@ function EditableCategoryNode({
           event.preventDefault();
           onDropPayload(node.id, event.dataTransfer.getData("text/plain"));
         }}
-        className={`flex min-h-11 items-center gap-2 rounded-md px-2 transition ${
+        className={`category-tree-row flex min-h-11 min-w-0 items-center gap-2 rounded-md px-2 transition ${
           selectedId === node.id ? "bg-emerald-50 ring-1 ring-emerald-200" : "hover:bg-stone-50"
         }`}
-        style={{ paddingLeft: `${depth * 1 + 0.5}rem` }}
+        style={{ "--depth": depth } as TreeDepthStyle}
       >
-        <GripVertical aria-hidden="true" size={15} className="text-stone-400" />
+        <GripVertical aria-hidden="true" size={15} className="hidden shrink-0 text-stone-400 sm:block" />
         <button
           type="button"
           onClick={() => onSelect(node.id)}
@@ -397,7 +454,7 @@ function EditableCategoryNode({
         <button
           type="button"
           onClick={() => onMoveCategory(node.id, -1)}
-          className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
+          className="grid size-8 shrink-0 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
           aria-label="Subir categoria"
         >
           <ArrowUp aria-hidden="true" size={14} />
@@ -405,7 +462,7 @@ function EditableCategoryNode({
         <button
           type="button"
           onClick={() => onMoveCategory(node.id, 1)}
-          className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
+          className="grid size-8 shrink-0 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
           aria-label="Bajar categoria"
         >
           <ArrowDown aria-hidden="true" size={14} />
@@ -422,16 +479,24 @@ function EditableCategoryNode({
               JSON.stringify({ type: "category-song", categorySongId: song.linkId, songId: song.id }),
             );
           }}
-          className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-stone-700 hover:bg-stone-50"
-          style={{ paddingLeft: `${(depth + 1) * 1 + 0.75}rem` }}
+          className={`category-song-row flex min-h-10 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-stone-700 hover:bg-stone-50 ${
+            selectedCategorySongId === song.linkId ? "bg-emerald-50 ring-1 ring-emerald-200" : ""
+          }`}
+          style={{ "--depth": depth } as TreeDepthStyle}
         >
-          <GripVertical aria-hidden="true" size={14} className="text-stone-400" />
-          <Music aria-hidden="true" size={15} className="text-emerald-700" />
-          <span className="min-w-0 flex-1 truncate">{song.title}</span>
+          <GripVertical aria-hidden="true" size={14} className="hidden shrink-0 text-stone-400 sm:block" />
+          <Music aria-hidden="true" size={15} className="shrink-0 text-emerald-700" />
+          <button
+            type="button"
+            onClick={() => onSelectSongForMove(song.id, song.linkId)}
+            className="min-w-0 flex-1 truncate text-left"
+          >
+            {song.title}
+          </button>
           <button
             type="button"
             onClick={() => onMoveLink(song.linkId, -1)}
-            className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
             aria-label="Subir cancion"
           >
             <ArrowUp aria-hidden="true" size={14} />
@@ -439,7 +504,7 @@ function EditableCategoryNode({
           <button
             type="button"
             onClick={() => onMoveLink(song.linkId, 1)}
-            className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-white"
             aria-label="Bajar cancion"
           >
             <ArrowDown aria-hidden="true" size={14} />
@@ -447,7 +512,7 @@ function EditableCategoryNode({
           <button
             type="button"
             onClick={() => onRemoveAssignment(song.linkId)}
-            className="grid size-8 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
             aria-label="Quitar del grupo"
           >
             <Trash2 aria-hidden="true" size={14} />
@@ -465,6 +530,8 @@ function EditableCategoryNode({
           onDropPayload={onDropPayload}
           onMoveCategory={onMoveCategory}
           onMoveLink={onMoveLink}
+          onSelectSongForMove={onSelectSongForMove}
+          selectedCategorySongId={selectedCategorySongId}
           onRemoveAssignment={onRemoveAssignment}
         />
       ))}
@@ -485,6 +552,18 @@ function SelectedCategoryForm({
 }) {
   const [name, setName] = useState(category.name);
   const [parentId, setParentId] = useState<number | null>(category.parentId);
+  const parentOptions = useMemo<CustomSelectOption[]>(
+    () => [
+      { value: "", label: "Raiz" },
+      ...categories
+        .filter((item) => item.id !== category.id)
+        .map((item) => ({
+          value: String(item.id),
+          label: item.name,
+        })),
+    ],
+    [categories, category.id],
+  );
 
   return (
     <div className="mt-3 grid gap-3">
@@ -493,21 +572,12 @@ function SelectedCategoryForm({
         onChange={(event) => setName(event.target.value)}
         className="h-10 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600"
       />
-      <select
-        value={parentId ?? ""}
-        onChange={(event) => setParentId(event.target.value ? Number(event.target.value) : null)}
-        className="h-10 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600"
-      >
-        <option value="">Raiz</option>
-        {categories
-          .filter((item) => item.id !== category.id)
-          .map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-      </select>
-      <div className="grid grid-cols-2 gap-2">
+      <CustomSelect
+        value={parentId ? String(parentId) : ""}
+        options={parentOptions}
+        onChange={(value) => setParentId(value ? Number(value) : null)}
+      />
+      <div className="grid gap-2 sm:grid-cols-2">
         <button
           type="button"
           disabled={!name.trim()}

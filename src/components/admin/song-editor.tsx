@@ -13,6 +13,7 @@ import {
 import { contentFromPlainLyrics } from "@/lib/plain-lyrics";
 import { InteractiveSongPreview } from "@/components/admin/interactive-song-preview";
 import { ChordLineEditor } from "@/components/admin/chord-line-editor";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 export type SongEditorPayload = {
   title: string;
@@ -50,6 +51,24 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
     [categories],
+  );
+  const categoryOptions = useMemo<CustomSelectOption[]>(
+    () => [
+      { value: "", label: "Sin categoria" },
+      ...sortedCategories.map((category) => ({
+        value: String(category.id),
+        label: category.name,
+      })),
+    ],
+    [sortedCategories],
+  );
+  const sectionTypeOptions = useMemo<CustomSelectOption[]>(
+    () =>
+      sectionTypes.map((type) => ({
+        value: type,
+        label: sectionTypeLabel(type),
+      })),
+    [],
   );
 
   async function submit() {
@@ -227,8 +246,8 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
   }
 
   return (
-    <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start xl:grid-cols-[minmax(360px,0.78fr)_minmax(0,1.22fr)]">
-      <section className="min-h-0 overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
+    <div className="grid min-h-0 gap-4">
+      <section className="min-h-0 rounded-lg border border-stone-200 bg-white shadow-sm">
         <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Edicion</p>
@@ -238,7 +257,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
         </div>
 
         <div className="grid gap-4 p-4">
-          <div className="grid gap-4 md:grid-cols-[1fr_auto_auto]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)_minmax(15rem,auto)]">
             <label className="grid gap-2 text-sm font-medium text-stone-800">
               Titulo
               <input
@@ -249,21 +268,12 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
               />
             </label>
 
-            <label className="grid gap-2 text-sm font-medium text-stone-800">
-              Categoria
-              <select
-                value={categoryId ?? ""}
-                onChange={(event) => setCategoryId(event.target.value ? Number(event.target.value) : null)}
-                className="h-11 rounded-md border border-stone-300 px-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              >
-                <option value="">Sin categoria</option>
-                {sortedCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <CustomSelect
+              label="Categoria"
+              value={categoryId ? String(categoryId) : ""}
+              options={categoryOptions}
+              onChange={(value) => setCategoryId(value ? Number(value) : null)}
+            />
 
             <div className="grid grid-cols-2 gap-2 self-end">
               <label className="flex h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium text-stone-800">
@@ -304,140 +314,134 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
 
           {advancedMode ? (
             <div className="grid gap-4">
-            <div className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-stone-950">Pegar letra</h3>
-                <button
-                  type="button"
-                  onClick={applyPastedLyrics}
-                  disabled={!lyricsDraft.trim()}
-                  className="inline-flex h-10 items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
-                >
-                  <ClipboardPaste aria-hidden="true" size={16} />
-                  Crear estructura
-                </button>
-              </div>
-              <textarea
-                value={lyricsDraft}
-                onChange={(event) => setLyricsDraft(event.target.value)}
-                rows={6}
-                className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                placeholder={"Linea 1\nLinea 2\n\nNueva estrofa"}
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={addSection}
-                className="inline-flex items-center gap-2 rounded-md border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
-              >
-                <Plus aria-hidden="true" size={16} />
-                Seccion
-              </button>
-            </div>
-
-            {content.sections.map((section, sectionIndex) => (
-              <div key={`${sectionIndex}-${section.type}`} className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
-                <div className="grid gap-2 md:grid-cols-[10rem_1fr_auto]">
-                  <select
-                    value={section.type}
-                    onChange={(event) =>
-                      updateSection(sectionIndex, {
-                        ...section,
-                        type: event.target.value as SectionType,
-                      })
-                    }
-                    className="h-10 rounded-md border border-stone-300 bg-white px-2 text-sm outline-none focus:border-emerald-600"
-                  >
-                    {sectionTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {sectionTypeLabel(type)}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={section.title}
-                    onChange={(event) =>
-                      updateSection(sectionIndex, {
-                        ...section,
-                        title: event.target.value,
-                      })
-                    }
-                    className="h-10 rounded-md border border-stone-300 bg-white px-3 text-sm outline-none focus:border-emerald-600"
-                    placeholder="Titulo de seccion"
-                  />
+              <div className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-stone-950">Pegar letra</h3>
                   <button
                     type="button"
-                    onClick={() => removeSection(sectionIndex)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                    onClick={applyPastedLyrics}
+                    disabled={!lyricsDraft.trim()}
+                    className="inline-flex h-10 items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400"
                   >
-                    <Trash2 aria-hidden="true" size={15} />
-                    Eliminar
+                    <ClipboardPaste aria-hidden="true" size={16} />
+                    Crear estructura
                   </button>
                 </div>
+                <textarea
+                  value={lyricsDraft}
+                  onChange={(event) => setLyricsDraft(event.target.value)}
+                  rows={6}
+                  className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  placeholder={"Linea 1\nLinea 2\n\nNueva estrofa"}
+                />
+              </div>
 
-                <div className="grid gap-3">
-                  {section.lines.map((line, lineIndex) => (
-                    <ChordLineEditor
-                      key={`${sectionIndex}-${lineIndex}`}
-                      line={line}
-                      canMoveUp={lineIndex > 0}
-                      canMoveDown={lineIndex < section.lines.length - 1}
-                      onMoveUp={() =>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={addSection}
+                  className="inline-flex items-center gap-2 rounded-md border border-emerald-200 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
+                >
+                  <Plus aria-hidden="true" size={16} />
+                  Seccion
+                </button>
+              </div>
+
+              {content.sections.map((section, sectionIndex) => (
+                <div key={`${sectionIndex}-${section.type}`} className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                  <div className="grid gap-2 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)_auto]">
+                    <CustomSelect
+                      value={section.type}
+                      options={sectionTypeOptions}
+                      onChange={(value) =>
                         updateSection(sectionIndex, {
                           ...section,
-                          lines: moveItem(section.lines, lineIndex, lineIndex - 1),
-                        })
-                      }
-                      onMoveDown={() =>
-                        updateSection(sectionIndex, {
-                          ...section,
-                          lines: moveItem(section.lines, lineIndex, lineIndex + 1),
-                        })
-                      }
-                      onDelete={() =>
-                        updateSection(sectionIndex, {
-                          ...section,
-                          lines:
-                            section.lines.length > 1
-                              ? section.lines.filter((_, index) => index !== lineIndex)
-                              : [{ lyrics: "", chords: [] }],
-                        })
-                      }
-                      onChange={(nextLine) =>
-                        updateSection(sectionIndex, {
-                          ...section,
-                          lines: section.lines.map((item, index) =>
-                            index === lineIndex ? reconcileLineChange(section.lines[lineIndex], nextLine) : item,
-                          ),
+                          type: value as SectionType,
                         })
                       }
                     />
-                  ))}
-                </div>
+                    <input
+                      value={section.title}
+                      onChange={(event) =>
+                        updateSection(sectionIndex, {
+                          ...section,
+                          title: event.target.value,
+                        })
+                      }
+                      className="h-12 rounded-md border border-stone-300 bg-white px-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                      placeholder="Titulo de seccion"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSection(sectionIndex)}
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                    >
+                      <Trash2 aria-hidden="true" size={15} />
+                      Eliminar
+                    </button>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateSection(sectionIndex, {
-                      ...section,
-                      lines: [...section.lines, { lyrics: "", chords: [] }],
-                    })
-                  }
-                  className="inline-flex h-10 w-fit items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
-                >
-                  <Plus aria-hidden="true" size={16} />
-                  Linea
-                </button>
-              </div>
-            ))}
+                  <div className="grid gap-3">
+                    {section.lines.map((line, lineIndex) => (
+                      <ChordLineEditor
+                        key={`${sectionIndex}-${lineIndex}`}
+                        line={line}
+                        canMoveUp={lineIndex > 0}
+                        canMoveDown={lineIndex < section.lines.length - 1}
+                        onMoveUp={() =>
+                          updateSection(sectionIndex, {
+                            ...section,
+                            lines: moveItem(section.lines, lineIndex, lineIndex - 1),
+                          })
+                        }
+                        onMoveDown={() =>
+                          updateSection(sectionIndex, {
+                            ...section,
+                            lines: moveItem(section.lines, lineIndex, lineIndex + 1),
+                          })
+                        }
+                        onDelete={() =>
+                          updateSection(sectionIndex, {
+                            ...section,
+                            lines:
+                              section.lines.length > 1
+                                ? section.lines.filter((_, index) => index !== lineIndex)
+                                : [{ lyrics: "", chords: [] }],
+                          })
+                        }
+                        onChange={(nextLine) =>
+                          updateSection(sectionIndex, {
+                            ...section,
+                            lines: section.lines.map((item, index) =>
+                              index === lineIndex ? reconcileLineChange(section.lines[lineIndex], nextLine) : item,
+                            ),
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateSection(sectionIndex, {
+                        ...section,
+                        lines: [...section.lines, { lyrics: "", chords: [] }],
+                      })
+                    }
+                    className="inline-flex h-10 w-fit items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                  >
+                    <Plus aria-hidden="true" size={16} />
+                    Linea
+                  </button>
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
       </section>
 
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)]">
+      <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
         <div className="shrink-0 border-b border-stone-200 p-4">
           <p className="text-sm font-medium text-emerald-700">Vista previa</p>
           <h2 className="mt-1 text-2xl font-semibold text-stone-950">{title || "Cancion sin titulo"}</h2>

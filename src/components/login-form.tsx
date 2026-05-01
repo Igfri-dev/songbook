@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { signIn } from "next-auth/react";
+import { ActionModal } from "@/components/ui/action-modal";
 
 export function LoginForm() {
   const router = useRouter();
@@ -63,8 +64,6 @@ export function LoginForm() {
         />
       </label>
 
-      {error ? <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-
       <button
         type="submit"
         disabled={isPending}
@@ -73,6 +72,15 @@ export function LoginForm() {
         <LogIn aria-hidden="true" size={17} />
         {isPending ? "Entrando..." : "Entrar"}
       </button>
+
+      <ActionModal
+        open={Boolean(error)}
+        title="No se pudo iniciar sesion"
+        description={error}
+        tone="error"
+        confirmLabel="Entendido"
+        onConfirm={() => setError("")}
+      />
     </form>
   );
 }

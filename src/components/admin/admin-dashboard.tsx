@@ -6,8 +6,22 @@ import type { AdminSnapshot } from "@/lib/catalog";
 import { CategoryTreeEditor } from "@/components/admin/category-tree-editor";
 import { SongCreateModal } from "@/components/admin/song-create-modal";
 import { SongEditor, type SongEditorDraft, type SongEditorPayload } from "@/components/admin/song-editor";
+import { ActionModal } from "@/components/ui/action-modal";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 type Tab = "songs" | "categories" | "versions";
+type ConfirmDialogState = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  resolve: (confirmed: boolean) => void;
+};
+
+type NoticeDialogState = {
+  title: string;
+  description: string;
+};
 
 const tabs: { id: Tab; label: string; icon: typeof Music2 }[] = [
   { id: "songs", label: "Canciones", icon: Music2 },
@@ -19,7 +33,8 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [activeTab, setActiveTab] = useState<Tab>("songs");
   const [editingSongId, setEditingSongId] = useState<number | null>(snapshot.songs[0]?.id ?? null);
-  const [error, setError] = useState("");
+  const [noticeDialog, setNoticeDialog] = useState<NoticeDialogState | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [versionNotes, setVersionNotes] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -31,20 +46,61 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     () => snapshot.songs.find((song) => song.id === editingSongId) ?? null,
     [snapshot.songs, editingSongId],
   );
+  const tabOptions = useMemo<CustomSelectOption[]>(
+    () =>
+      tabs.map((tab) => ({
+        value: tab.id,
+        label: tab.label,
+      })),
+    [],
+  );
+  const songOptions = useMemo<CustomSelectOption[]>(
+    () => [
+      ...(songDraft
+        ? [
+            {
+              value: "draft",
+              label: songDraft.title,
+              description: "Borrador sin guardar",
+            },
+          ]
+        : []),
+      ...snapshot.songs.map((song) => ({
+        value: String(song.id),
+        label: song.title,
+        description: song.isPublished ? "Publicada" : "Borrador",
+      })),
+    ],
+    [snapshot.songs, songDraft],
+  );
 
   async function mutate(url: string, init?: RequestInit) {
-    setError("");
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    });
+    setNoticeDialog(null);
+
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+      });
+    } catch {
+      setNoticeDialog({
+        title: "No se pudo completar la operacion",
+        description: "Revisa tu conexion o intenta nuevamente.",
+      });
+      return null;
+    }
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(body?.error ?? "No se pudo completar la operacion.");
+      setNoticeDialog({
+        title: "No se pudo completar la operacion",
+        description: body?.error ?? "El servidor rechazo la solicitud.",
+      });
       return null;
     }
 
@@ -52,6 +108,17 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     setSnapshot(next);
     setRevision((current) => current + 1);
     return next;
+  }
+
+  function requestConfirmation(options: Omit<ConfirmDialogState, "resolve">) {
+    return new Promise<boolean>((resolve) => {
+      setConfirmDialog({ ...options, resolve });
+    });
+  }
+
+  function closeConfirmation(confirmed: boolean) {
+    confirmDialog?.resolve(confirmed);
+    setConfirmDialog(null);
   }
 
   async function saveSong(songId: number | null, payload: SongEditorPayload) {
@@ -68,7 +135,15 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   }
 
   async function deleteSong(songId: number) {
-    if (!window.confirm("Eliminar esta cancion?")) {
+    const song = snapshot.songs.find((item) => item.id === songId);
+    const confirmed = await requestConfirmation({
+      title: "Eliminar cancion",
+      description: `Esta accion eliminara ${song?.title ? `"${song.title}"` : "esta cancion"} y no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      cancelLabel: "Cancelar",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -98,39 +173,23 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
 
   return (
     <div className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white p-2 shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
-                  activeTab === tab.id
-                    ? "bg-stone-900 text-white"
-                    : "text-stone-700 hover:bg-stone-100"
-                }`}
-              >
-                <Icon aria-hidden="true" size={16} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+      <div className="grid gap-3 rounded-lg border border-stone-200 bg-white p-3 shadow-sm sm:grid-cols-[minmax(16rem,24rem)_auto] sm:items-end sm:justify-between">
+        <CustomSelect
+          label="Menu"
+          value={activeTab}
+          options={tabOptions}
+          onChange={(value) => setActiveTab(value as Tab)}
+        />
 
         <button
           type="button"
           onClick={refresh}
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-700 hover:bg-stone-50 sm:w-auto"
         >
           <RefreshCw aria-hidden="true" size={16} />
           Actualizar
         </button>
       </div>
-
-      {error ? <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
 
       {activeTab === "songs" ? (
         <section className="grid gap-5">
@@ -150,22 +209,14 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               </button>
             </div>
 
-            <label className="mt-4 grid gap-2 text-sm font-medium text-stone-800 sm:hidden">
-              Seleccionar cancion
-              <select
-                value={songDraft ? "draft" : editingSongId ?? ""}
-                onChange={(event) => selectSong(event.target.value)}
-                className="h-11 w-full rounded-md border border-stone-300 px-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              >
-                <option value="">Seleccionar cancion</option>
-                {songDraft ? <option value="draft">{songDraft.title} - borrador sin guardar</option> : null}
-                {snapshot.songs.map((song) => (
-                  <option key={song.id} value={song.id}>
-                    {song.title} - {song.isPublished ? "Publicada" : "Borrador"}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <CustomSelect
+              className="mt-4 sm:hidden"
+              label="Seleccionar cancion"
+              value={songDraft ? "draft" : editingSongId ? String(editingSongId) : ""}
+              options={songOptions}
+              placeholder="Seleccionar cancion"
+              onChange={selectSong}
+            />
 
             <div className="mt-4 hidden gap-2 overflow-x-auto pb-1 sm:flex">
               {songDraft ? (
@@ -249,7 +300,17 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
             });
           }}
           onDeleteCategory={async (id) => {
-            if (window.confirm("Eliminar esta carpeta? Sus canciones no se eliminan.")) {
+            const category = snapshot.categories.find((item) => item.id === id);
+            const confirmed = await requestConfirmation({
+              title: "Eliminar carpeta",
+              description: `Esta accion eliminara ${
+                category?.name ? `"${category.name}"` : "esta carpeta"
+              }. Las canciones no se eliminan.`,
+              confirmLabel: "Eliminar",
+              cancelLabel: "Cancelar",
+            });
+
+            if (confirmed) {
               await mutate(`/api/admin/categories/${id}`, { method: "DELETE" });
             }
           }}
@@ -328,6 +389,26 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
           </aside>
         </section>
       ) : null}
+
+      <ActionModal
+        open={Boolean(confirmDialog)}
+        title={confirmDialog?.title ?? ""}
+        description={confirmDialog?.description ?? ""}
+        tone="danger"
+        confirmLabel={confirmDialog?.confirmLabel}
+        cancelLabel={confirmDialog?.cancelLabel}
+        onConfirm={() => closeConfirmation(true)}
+        onCancel={() => closeConfirmation(false)}
+      />
+
+      <ActionModal
+        open={Boolean(noticeDialog)}
+        title={noticeDialog?.title ?? ""}
+        description={noticeDialog?.description ?? ""}
+        tone="error"
+        confirmLabel="Entendido"
+        onConfirm={() => setNoticeDialog(null)}
+      />
     </div>
   );
 }
