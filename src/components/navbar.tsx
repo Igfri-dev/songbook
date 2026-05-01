@@ -9,15 +9,15 @@ export async function Navbar() {
 
   return (
     <header className="border-b border-stone-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-lg font-semibold text-stone-950">
+      <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="inline-flex min-w-0 items-center gap-2 text-lg font-semibold text-stone-950">
           <span className="grid size-9 place-items-center rounded-md bg-emerald-700 text-white">
             <Music2 aria-hidden="true" size={19} />
           </span>
-          Cancionero
+          <span className="truncate">Cancionero</span>
         </Link>
 
-        <nav className="flex items-center gap-2">
+        <nav className="flex shrink-0 items-center gap-2">
           {isAdmin ? (
             <>
               <Link

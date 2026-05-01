@@ -102,11 +102,14 @@ export function ChordLineEditor({
         ) : (
           <div className="grid gap-2">
             {line.chords.map((chord, index) => (
-              <div key={`${index}-${chord.chord}`} className="grid grid-cols-[1fr_5rem_auto] gap-2">
+              <div
+                key={`${index}-${chord.chord}`}
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_auto]"
+              >
                 <input
                   value={chord.chord}
                   onChange={(event) => updateChord(index, { chord: event.target.value })}
-                  className="h-9 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
+                  className="h-9 min-w-0 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
                   aria-label="Acorde"
                 />
                 <input
@@ -115,14 +118,14 @@ export function ChordLineEditor({
                   min={0}
                   max={240}
                   onChange={(event) => updateChord(index, { at: Number(event.target.value) })}
-                  className="h-9 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
+                  className="h-9 min-w-0 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
                   aria-label="Posicion"
                 />
-                <div className="flex items-center gap-1">
+                <div className="col-span-2 grid grid-cols-3 gap-1 sm:col-span-1 sm:flex sm:items-center">
                   <button
                     type="button"
                     onClick={() => updateChord(index, { at: Math.max(0, chord.at - 1) })}
-                    className="grid size-9 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50"
+                    className="grid h-9 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50 sm:size-9"
                     aria-label="Mover acorde a la izquierda"
                   >
                     <ArrowLeft aria-hidden="true" size={15} />
@@ -130,7 +133,7 @@ export function ChordLineEditor({
                   <button
                     type="button"
                     onClick={() => updateChord(index, { at: chord.at + 1 })}
-                    className="grid size-9 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50"
+                    className="grid h-9 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50 sm:size-9"
                     aria-label="Mover acorde a la derecha"
                   >
                     <ArrowRight aria-hidden="true" size={15} />
@@ -138,7 +141,7 @@ export function ChordLineEditor({
                   <button
                     type="button"
                     onClick={() => removeChord(index)}
-                    className="grid size-9 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
+                    className="grid h-9 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 sm:size-9"
                     aria-label="Eliminar acorde"
                   >
                     <Trash2 aria-hidden="true" size={15} />

@@ -1,17 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderTree, Library, Music2, Plus, RefreshCw, UploadCloud } from "lucide-react";
+import { FolderTree, Music2, Plus, RefreshCw, UploadCloud } from "lucide-react";
 import type { AdminSnapshot } from "@/lib/catalog";
 import { CategoryTreeEditor } from "@/components/admin/category-tree-editor";
-import { SongEditor, type SongEditorPayload } from "@/components/admin/song-editor";
+import { SongCreateModal } from "@/components/admin/song-create-modal";
+import { SongEditor, type SongEditorDraft, type SongEditorPayload } from "@/components/admin/song-editor";
 
-type Tab = "songs" | "categories" | "catalog" | "versions";
+type Tab = "songs" | "categories" | "versions";
 
 const tabs: { id: Tab; label: string; icon: typeof Music2 }[] = [
   { id: "songs", label: "Canciones", icon: Music2 },
   { id: "categories", label: "Categorias", icon: FolderTree },
-  { id: "catalog", label: "Catalogo", icon: Library },
   { id: "versions", label: "Versionado", icon: UploadCloud },
 ];
 
@@ -23,6 +23,9 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   const [versionNotes, setVersionNotes] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [songDraft, setSongDraft] = useState<SongEditorDraft | null>(null);
+  const [draftRevision, setDraftRevision] = useState(0);
 
   const editingSong = useMemo(
     () => snapshot.songs.find((song) => song.id === editingSongId) ?? null,
@@ -58,7 +61,9 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     });
 
     if (!songId && next?.songs[0]) {
-      setEditingSongId(next.songs[0].id);
+      const savedSong = next.songs.find((song) => song.title === payload.title) ?? next.songs[0];
+      setSongDraft(null);
+      setEditingSongId(savedSong.id);
     }
   }
 
@@ -73,6 +78,22 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
 
   async function refresh() {
     await mutate("/api/admin/catalog", { method: "GET" });
+  }
+
+  function selectSong(value: string) {
+    if (value === "draft") {
+      setEditingSongId(null);
+      return;
+    }
+
+    if (!value) {
+      setSongDraft(null);
+      setEditingSongId(null);
+      return;
+    }
+
+    setSongDraft(null);
+    setEditingSongId(Number(value));
   }
 
   return (
@@ -114,29 +135,57 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       {activeTab === "songs" ? (
         <section className="grid gap-5">
           <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-stone-950">Canciones</h2>
                 <p className="mt-1 text-sm text-stone-600">Crea, edita, elimina y controla publicacion.</p>
               </div>
               <button
                 type="button"
-                onClick={() => setEditingSongId(null)}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                onClick={() => setCreateModalOpen(true)}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 sm:w-auto"
               >
                 <Plus aria-hidden="true" size={16} />
                 Nueva cancion
               </button>
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            <label className="mt-4 grid gap-2 text-sm font-medium text-stone-800 sm:hidden">
+              Seleccionar cancion
+              <select
+                value={songDraft ? "draft" : editingSongId ?? ""}
+                onChange={(event) => selectSong(event.target.value)}
+                className="h-11 w-full rounded-md border border-stone-300 px-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              >
+                <option value="">Seleccionar cancion</option>
+                {songDraft ? <option value="draft">{songDraft.title} - borrador sin guardar</option> : null}
+                {snapshot.songs.map((song) => (
+                  <option key={song.id} value={song.id}>
+                    {song.title} - {song.isPublished ? "Publicada" : "Borrador"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-4 hidden gap-2 overflow-x-auto pb-1 sm:flex">
+              {songDraft ? (
+                <div
+                  className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900"
+                >
+                  <span className="block font-semibold">{songDraft.title}</span>
+                  <span className="text-xs text-emerald-700">Borrador sin guardar</span>
+                </div>
+              ) : null}
               {snapshot.songs.map((song) => (
                 <button
                   key={song.id}
                   type="button"
-                  onClick={() => setEditingSongId(song.id)}
+                  onClick={() => {
+                    setSongDraft(null);
+                    setEditingSongId(song.id);
+                  }}
                   className={`shrink-0 rounded-md border px-3 py-2 text-left text-sm transition ${
-                    editingSongId === song.id
+                    !songDraft && editingSongId === song.id
                       ? "border-emerald-300 bg-emerald-50 text-emerald-900"
                       : "border-stone-200 text-stone-700 hover:bg-stone-50"
                   }`}
@@ -148,61 +197,45 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
             </div>
           </div>
 
-          <SongEditor
-            key={`${editingSong?.id ?? "new"}-${editingSong?.updatedAt ?? revision}`}
-            song={editingSong}
-            categories={snapshot.categories}
-            onSave={saveSong}
-            onDelete={deleteSong}
-          />
+          {editingSong || songDraft ? (
+            <SongEditor
+              key={
+                editingSong
+                  ? `${editingSong.id}-${editingSong.updatedAt}-${revision}`
+                  : `draft-${draftRevision}`
+              }
+              song={editingSong}
+              draft={songDraft}
+              categories={snapshot.categories}
+              onSave={saveSong}
+              onDelete={deleteSong}
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed border-stone-300 bg-white p-6 text-sm text-stone-600">
+              Selecciona una cancion o crea una nueva.
+            </div>
+          )}
         </section>
+      ) : null}
+
+      {createModalOpen ? (
+        <SongCreateModal
+          categories={snapshot.categories}
+          onClose={() => setCreateModalOpen(false)}
+          onCreateDraft={(draft) => {
+            setSongDraft(draft);
+            setEditingSongId(null);
+            setDraftRevision((current) => current + 1);
+            setCreateModalOpen(false);
+          }}
+        />
       ) : null}
 
       {activeTab === "categories" ? (
         <CategoryTreeEditor
           key={`categories-${revision}`}
           snapshot={snapshot}
-          title="Categorias"
-          onCreateCategory={async (name, parentId) => {
-            await mutate("/api/admin/categories", {
-              method: "POST",
-              body: JSON.stringify({ name, parentId }),
-            });
-          }}
-          onUpdateCategory={async (id, name, parentId) => {
-            await mutate(`/api/admin/categories/${id}`, {
-              method: "PUT",
-              body: JSON.stringify({ name, parentId }),
-            });
-          }}
-          onDeleteCategory={async (id) => {
-            if (window.confirm("Eliminar esta carpeta? Sus canciones no se eliminan.")) {
-              await mutate(`/api/admin/categories/${id}`, { method: "DELETE" });
-            }
-          }}
-          onAssignSong={async (songId, categoryId, categorySongId) => {
-            await mutate("/api/admin/catalog/assign", {
-              method: "POST",
-              body: JSON.stringify({ songId, categoryId, categorySongId }),
-            });
-          }}
-          onRemoveAssignment={async (categorySongId) => {
-            await mutate(`/api/admin/catalog/assign/${categorySongId}`, { method: "DELETE" });
-          }}
-          onSaveOrder={async (payload) => {
-            await mutate("/api/admin/catalog/order", {
-              method: "PUT",
-              body: JSON.stringify(payload),
-            });
-          }}
-        />
-      ) : null}
-
-      {activeTab === "catalog" ? (
-        <CategoryTreeEditor
-          key={`catalog-${revision}`}
-          snapshot={snapshot}
-          title="Catalogo editable"
+          title="Categorias y catalogo"
           onCreateCategory={async (name, parentId) => {
             await mutate("/api/admin/categories", {
               method: "POST",

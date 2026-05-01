@@ -51,21 +51,72 @@ textarea {
   height: 1.2rem;
 }
 
+.chord-layer-editable {
+  cursor: text;
+  z-index: 10;
+}
+
 .chord-token {
   position: absolute;
   top: 0;
-  left: min(calc(var(--at) * 1ch), calc(100% - 3.25rem));
+  left: max(0px, min(calc(var(--at) * 1ch), calc(100% - 6rem)));
+  border: 0;
   color: #047857;
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1;
+  max-width: min(6rem, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chord-token-editable {
+  margin: 0;
+  border-radius: 0.25rem;
+  background: #ecfdf5;
+  padding: 0.08rem 0.22rem;
+  cursor: grab;
+  touch-action: none;
+  transform: translateX(-0.12rem);
+}
+
+.chord-token-editable:active {
+  cursor: grabbing;
+}
+
+.chord-token-editable:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+.chord-popover {
+  position: absolute;
+  top: 1.35rem;
+  left: max(0px, min(calc(var(--at) * 1ch), calc(100% - 10rem)));
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: max-content;
+  max-width: calc(100% - 0.5rem);
+  border: 1px solid #d6d3d1;
+  border-radius: 0.375rem;
+  background: #ffffff;
+  padding: 0.25rem;
+  box-shadow: 0 10px 25px rgb(28 25 23 / 0.12);
 }
 
 .lyrics-line {
   display: block;
   overflow-wrap: anywhere;
   color: #292524;
-  font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.08rem);
+  font-size: 1rem;
   line-height: 1.7;
+}
+
+@media (min-width: 768px) {
+  .lyrics-line {
+    font-size: 1.05rem;
+  }
 }
