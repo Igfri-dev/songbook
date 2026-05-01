@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf9;
+  --foreground: #1c1917;
 }
 
 @theme inline {
@@ -12,15 +12,60 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
 }
 
 body {
+  min-height: 100%;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.chord-line {
+  --line-columns: 80;
+  position: relative;
+  display: grid;
+  gap: 0.05rem;
+  min-height: 3.25rem;
+  padding-top: 1.05rem;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.chord-layer {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1.2rem;
+}
+
+.chord-token {
+  position: absolute;
+  top: 0;
+  left: min(calc(var(--at) * 1ch), calc(100% - 3.25rem));
+  color: #047857;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lyrics-line {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #292524;
+  font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.08rem);
+  line-height: 1.7;
 }
