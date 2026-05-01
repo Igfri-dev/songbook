@@ -79,9 +79,21 @@ export type AdminSong = {
   }[];
 };
 
+export type AdminUser = {
+  id: number;
+  name: string;
+  email: string;
+  username: string;
+  role: "ADMIN";
+  hasPassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminSnapshot = {
   categories: AdminCategory[];
   songs: AdminSong[];
+  users: AdminUser[];
   latestVersion: string | null;
   versions: {
     id: number;
@@ -229,7 +241,7 @@ export function findFirstSongInTree(tree: CatalogCategoryNode[]): CatalogSongNod
 }
 
 export async function getAdminSnapshot(): Promise<AdminSnapshot> {
-  const [categories, songs, versions] = await Promise.all([
+  const [categories, songs, users, versions] = await Promise.all([
     prisma.songCategory.findMany({
       orderBy: [{ parentId: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -241,6 +253,9 @@ export async function getAdminSnapshot(): Promise<AdminSnapshot> {
         },
       },
       orderBy: [{ updatedAt: "desc" }, { title: "asc" }],
+    }),
+    prisma.user.findMany({
+      orderBy: [{ createdAt: "desc" }, { email: "asc" }],
     }),
     prisma.catalogVersion.findMany({
       orderBy: [{ mainVersion: "desc" }, { id: "desc" }],
@@ -273,6 +288,16 @@ export async function getAdminSnapshot(): Promise<AdminSnapshot> {
         categoryId: link.categoryId,
         sortOrder: link.sortOrder,
       })),
+    })),
+    users: users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      hasPassword: Boolean(user.passwordHash),
+      createdAt: iso(user.createdAt),
+      updatedAt: iso(user.updatedAt),
     })),
     latestVersion: versions[0]?.mainVersion.toISOString() ?? null,
     versions: versions.map((version) => ({

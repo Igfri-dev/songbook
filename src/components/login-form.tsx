@@ -24,14 +24,14 @@ export function LoginForm() {
 
         startTransition(async () => {
           const result = await signIn("credentials", {
-            email: String(formData.get("email") ?? ""),
+            identifier: String(formData.get("identifier") ?? ""),
             password: String(formData.get("password") ?? ""),
             redirect: false,
             callbackUrl,
           });
 
           if (result?.error) {
-            setError("Email o password incorrectos.");
+            setError("Email, usuario o password incorrectos.");
             return;
           }
 
@@ -41,14 +41,14 @@ export function LoginForm() {
       }}
     >
       <label className="grid gap-2 text-sm font-medium text-stone-800">
-        Email
+        Email o usuario
         <input
-          name="email"
-          type="email"
-          autoComplete="email"
+          name="identifier"
+          type="text"
+          autoComplete="username"
           required
           className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-          placeholder="admin@cancionero.local"
+          placeholder="admin o admin@cancionero.local"
         />
       </label>
 

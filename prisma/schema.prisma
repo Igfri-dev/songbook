@@ -12,15 +12,35 @@ enum Role {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  name         String   @db.VarChar(120)
-  email        String   @unique @db.VarChar(191)
-  passwordHash String   @map("passwordHash") @db.VarChar(191)
-  role         Role     @default(ADMIN)
-  createdAt    DateTime @default(now()) @map("createdAt")
-  updatedAt    DateTime @updatedAt @map("updatedAt")
+  id             Int              @id @default(autoincrement())
+  name           String           @db.VarChar(120)
+  email          String           @unique @db.VarChar(191)
+  username       String           @unique @db.VarChar(80)
+  passwordHash   String?          @map("passwordHash") @db.VarChar(191)
+  role           Role             @default(ADMIN)
+  createdAt      DateTime         @default(now()) @map("createdAt")
+  updatedAt      DateTime         @updatedAt @map("updatedAt")
+  createdInvites UserInvitation[] @relation("InviteCreator")
 
   @@map("users")
+}
+
+model UserInvitation {
+  id          Int       @id @default(autoincrement())
+  email       String    @db.VarChar(191)
+  username    String    @db.VarChar(80)
+  tokenHash   String    @unique @map("tokenHash") @db.VarChar(191)
+  expiresAt   DateTime  @map("expiresAt")
+  acceptedAt  DateTime? @map("acceptedAt")
+  createdById Int?      @map("createdById")
+  createdBy   User?     @relation("InviteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now()) @map("createdAt")
+  updatedAt   DateTime  @updatedAt @map("updatedAt")
+
+  @@index([email])
+  @@index([expiresAt])
+  @@index([createdById])
+  @@map("user_invitations")
 }
 
 model SongCategory {

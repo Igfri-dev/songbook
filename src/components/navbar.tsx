@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LockKeyhole, Music2, Settings } from "lucide-react";
 import { getAuthSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function Navbar() {
   const session = await getAuthSession();
@@ -18,6 +19,7 @@ export async function Navbar() {
         </Link>
 
         <nav className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
           {isAdmin ? (
             <>
               <Link

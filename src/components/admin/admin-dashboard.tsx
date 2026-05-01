@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderTree, Music2, Plus, RefreshCw, UploadCloud } from "lucide-react";
+import { FolderTree, Music2, Plus, RefreshCw, UploadCloud, UserPlus } from "lucide-react";
 import type { AdminSnapshot } from "@/lib/catalog";
 import { CategoryTreeEditor } from "@/components/admin/category-tree-editor";
 import { SongCreateModal } from "@/components/admin/song-create-modal";
 import { SongEditor, type SongEditorDraft, type SongEditorPayload } from "@/components/admin/song-editor";
+import { UserInvitePanel } from "@/components/admin/user-invite-panel";
 import { ActionModal } from "@/components/ui/action-modal";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
-type Tab = "songs" | "categories" | "versions";
+type Tab = "songs" | "categories" | "users" | "versions";
 type ConfirmDialogState = {
   title: string;
   description: string;
@@ -21,11 +22,13 @@ type ConfirmDialogState = {
 type NoticeDialogState = {
   title: string;
   description: string;
+  tone?: "info" | "error";
 };
 
 const tabs: { id: Tab; label: string; icon: typeof Music2 }[] = [
   { id: "songs", label: "Canciones", icon: Music2 },
   { id: "categories", label: "Categorias", icon: FolderTree },
+  { id: "users", label: "Usuarios", icon: UserPlus },
   { id: "versions", label: "Versionado", icon: UploadCloud },
 ];
 
@@ -153,6 +156,52 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
 
   async function refresh() {
     await mutate("/api/admin/catalog", { method: "GET" });
+  }
+
+  async function inviteUser(email: string) {
+    setNoticeDialog(null);
+
+    let response: Response;
+
+    try {
+      response = await fetch("/api/admin/users/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      setNoticeDialog({
+        title: "No se pudo enviar la invitacion",
+        description: "Revisa tu conexion o intenta nuevamente.",
+        tone: "error",
+      });
+      return;
+    }
+
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+      snapshot?: AdminSnapshot;
+      delivery?: { sent: boolean; setupUrl: string };
+    } | null;
+
+    if (!response.ok || !body?.snapshot) {
+      setNoticeDialog({
+        title: "No se pudo crear el usuario",
+        description: body?.error ?? "El servidor rechazo la solicitud.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setSnapshot(body.snapshot);
+    setRevision((current) => current + 1);
+    setNoticeDialog({
+      title: body.delivery?.sent ? "Invitacion enviada" : "Usuario creado",
+      description: body.delivery?.sent
+        ? `Se envio un correo a ${email} para crear su password.`
+        : `No hay SMTP configurado. Link de creacion: ${body.delivery?.setupUrl ?? ""}`,
+      tone: "info",
+    });
   }
 
   function selectSong(value: string) {
@@ -332,6 +381,10 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
         />
       ) : null}
 
+      {activeTab === "users" ? (
+        <UserInvitePanel users={snapshot.users} onInvite={inviteUser} />
+      ) : null}
+
       {activeTab === "versions" ? (
         <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
@@ -405,7 +458,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
         open={Boolean(noticeDialog)}
         title={noticeDialog?.title ?? ""}
         description={noticeDialog?.description ?? ""}
-        tone="error"
+        tone={noticeDialog?.tone ?? "error"}
         confirmLabel="Entendido"
         onConfirm={() => setNoticeDialog(null)}
       />

@@ -26,8 +26,18 @@ export const songContentSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email().max(191).transform((value) => value.toLowerCase().trim()),
+  identifier: z.string().min(1).max(191).transform((value) => value.toLowerCase().trim()),
   password: z.string().min(6).max(200),
+});
+
+export const inviteUserSchema = z.object({
+  email: z.string().email().max(191).transform((value) => value.toLowerCase().trim()),
+});
+
+export const setPasswordSchema = z.object({
+  token: z.string().min(32).max(200),
+  name: z.string().max(120).optional().default("").transform(cleanText),
+  password: z.string().min(8).max(200),
 });
 
 export const songPayloadSchema = z.object({
