@@ -2,8 +2,9 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { getDatabaseConfig } from "../src/lib/db-env";
 
-const adapter = new PrismaMariaDb(process.env.DATABASE_URL ?? "");
+const adapter = new PrismaMariaDb(getDatabaseConfig());
 const prisma = new PrismaClient({ adapter });
 
 const adminEmail = "admin@cancionero.local";

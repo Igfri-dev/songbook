@@ -30,16 +30,24 @@ cp .env.example .env
 Variables usadas localmente:
 
 ```env
-DATABASE_URL="mysql://root@127.0.0.1:3307/cancionero"
+DB_HOST="127.0.0.1"
+DB_PORT="3307"
+DB_USER="root"
+DB_PASSWORD=""
+DB_NAME="cancionero"
+DB_CONNECTION_LIMIT="10"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="replace-with-a-long-random-secret"
 APP_URL="http://localhost:3000"
 SMTP_HOST=""
 SMTP_PORT="587"
+SMTP_SECURE="false"
 SMTP_USER=""
 SMTP_PASS=""
 SMTP_FROM="Cancionero <no-reply@cancionero.local>"
 ```
+
+`APP_URL` se usa para generar los enlaces de invitacion de usuarios. `SMTP_SECURE` acepta `true`/`false`; normalmente es `true` con puerto `465` y `false` con `587`.
 
 3. Crear base de datos si no existe:
 

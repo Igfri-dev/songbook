@@ -2,6 +2,7 @@ import "dotenv/config";
 import fs from "node:fs";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { getDatabaseConfig } from "../src/lib/db-env";
 import { slugify } from "../src/lib/slug";
 
 type RawSong = {
@@ -25,7 +26,7 @@ if (!Array.isArray(raw)) {
   throw new Error("Entrada.json debe ser un arreglo de canciones");
 }
 
-const adapter = new PrismaMariaDb(process.env.DATABASE_URL ?? "");
+const adapter = new PrismaMariaDb(getDatabaseConfig());
 const prisma = new PrismaClient({ adapter });
 
 function parseChordLine(line: string) {
