@@ -1,6 +1,6 @@
 import { requireAdminSession, unauthorizedResponse, validationResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
-import { prisma } from "@/lib/prisma";
+import { db, transaction } from "@/lib/db";
 import { inviteUserSchema } from "@/lib/song-content";
 import {
   createInvitationToken,
@@ -36,8 +36,14 @@ export async function POST(request: Request) {
   }
 
   const [existingEmailUser, existingUsernameUser] = await Promise.all([
-    prisma.user.findUnique({ where: { email } }),
-    prisma.user.findUnique({ where: { username } }),
+    db.queryOne<{ email: string; passwordHash: string | null }>(
+      "SELECT email, passwordHash FROM users WHERE email = ? LIMIT 1",
+      [email],
+    ),
+    db.queryOne<{ email: string }>(
+      "SELECT email FROM users WHERE username = ? LIMIT 1",
+      [username],
+    ),
   ]);
 
   if (existingEmailUser?.passwordHash) {
@@ -55,37 +61,30 @@ export async function POST(request: Request) {
   const setupUrl = setupPasswordUrl(token);
   const createdById = session.user?.id ? Number(session.user.id) : null;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.upsert({
-      where: { email },
-      update: {
-        name: username,
-        username,
-        role: "ADMIN",
-      },
-      create: {
-        name: username,
-        email,
-        username,
-        passwordHash: null,
-        role: "ADMIN",
-      },
-    });
+  await transaction(async (tx) => {
+    await tx.execute(
+      `INSERT INTO users (name, email, username, passwordHash, role)
+       VALUES (?, ?, ?, NULL, 'ADMIN')
+       ON DUPLICATE KEY UPDATE name = VALUES(name), username = VALUES(username), role = 'ADMIN'`,
+      [username, email, username],
+    );
 
-    await tx.userInvitation.updateMany({
-      where: { email, acceptedAt: null },
-      data: { acceptedAt: new Date() },
-    });
+    await tx.execute(
+      "UPDATE user_invitations SET acceptedAt = ? WHERE email = ? AND acceptedAt IS NULL",
+      [new Date(), email],
+    );
 
-    await tx.userInvitation.create({
-      data: {
+    await tx.execute(
+      `INSERT INTO user_invitations (email, username, tokenHash, expiresAt, createdById)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
         email,
         username,
         tokenHash,
-        expiresAt: invitationExpiry(),
-        createdById: createdById && Number.isFinite(createdById) ? createdById : undefined,
-      },
-    });
+        invitationExpiry(),
+        createdById && Number.isFinite(createdById) ? createdById : null,
+      ],
+    );
   });
 
   let delivery;

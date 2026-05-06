@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { prisma } from "@/lib/prisma";
+import { db, transaction } from "@/lib/db";
 import { setPasswordSchema } from "@/lib/song-content";
 import { hashInvitationToken } from "@/lib/user-invitations";
 
@@ -13,41 +13,41 @@ export async function POST(request: Request) {
   }
 
   const tokenHash = hashInvitationToken(parsed.data.token);
-  const invitation = await prisma.userInvitation.findUnique({
-    where: { tokenHash },
-  });
+  const invitation = await db.queryOne<{
+    id: number;
+    email: string;
+    username: string;
+    expiresAt: Date;
+    acceptedAt: Date | null;
+  }>(
+    "SELECT id, email, username, expiresAt, acceptedAt FROM user_invitations WHERE tokenHash = ? LIMIT 1",
+    [tokenHash],
+  );
 
-  if (!invitation || invitation.acceptedAt || invitation.expiresAt < new Date()) {
+  if (!invitation || invitation.acceptedAt || new Date(invitation.expiresAt) < new Date()) {
     return Response.json({ error: "El enlace no es valido o ya vencio." }, { status: 400 });
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   const displayName = parsed.data.name || invitation.username;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { email: invitation.email },
-      data: {
-        name: displayName,
-        username: invitation.username,
-        passwordHash,
-        role: "ADMIN",
-      },
-    });
+  await transaction(async (tx) => {
+    await tx.execute(
+      `UPDATE users
+          SET name = ?, username = ?, passwordHash = ?, role = 'ADMIN'
+        WHERE email = ?`,
+      [displayName, invitation.username, passwordHash, invitation.email],
+    );
 
-    await tx.userInvitation.update({
-      where: { id: invitation.id },
-      data: { acceptedAt: new Date() },
-    });
+    await tx.execute(
+      "UPDATE user_invitations SET acceptedAt = ? WHERE id = ?",
+      [new Date(), invitation.id],
+    );
 
-    await tx.userInvitation.updateMany({
-      where: {
-        email: invitation.email,
-        id: { not: invitation.id },
-        acceptedAt: null,
-      },
-      data: { acceptedAt: new Date() },
-    });
+    await tx.execute(
+      "UPDATE user_invitations SET acceptedAt = ? WHERE email = ? AND id <> ? AND acceptedAt IS NULL",
+      [new Date(), invitation.email, invitation.id],
+    );
   });
 
   return Response.json({ ok: true });

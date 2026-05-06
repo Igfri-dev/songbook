@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
-import { prisma } from "@/lib/prisma";
+import { db, transaction } from "@/lib/db";
 import { makeUniqueSlug } from "@/lib/slug";
 import { songPayloadSchema } from "@/lib/song-content";
 
@@ -26,34 +26,36 @@ export async function PUT(
     return Response.json({ error: "Datos invalidos" }, { status: 400 });
   }
 
-  const existing = await prisma.song.findUnique({ where: { id } });
+  const existing = await db.queryOne<{ id: number }>(
+    "SELECT id FROM songs WHERE id = ? LIMIT 1",
+    [id],
+  );
 
   if (!existing) {
     return Response.json({ error: "Cancion no encontrada" }, { status: 404 });
   }
 
   const slug = await makeUniqueSlug(parsed.data.title, async (candidate) => {
-    const sameSlug = await prisma.song.findFirst({
-      where: { slug: candidate, id: { not: id } },
-    });
+    const sameSlug = await db.queryOne<{ id: number }>(
+      "SELECT id FROM songs WHERE slug = ? AND id <> ? LIMIT 1",
+      [candidate, id],
+    );
     return Boolean(sameSlug);
   });
 
-  await prisma.song.update({
-    where: { id },
-    data: {
-      title: parsed.data.title,
-      slug,
-      hasChords: parsed.data.hasChords,
-      isPublished: parsed.data.isPublished,
-      contentVersion: new Date(),
-      content: {
-        upsert: {
-          create: { contentJson: parsed.data.content },
-          update: { contentJson: parsed.data.content },
-        },
-      },
-    },
+  await transaction(async (tx) => {
+    await tx.execute(
+      `UPDATE songs
+          SET title = ?, slug = ?, hasChords = ?, isPublished = ?, contentVersion = ?
+        WHERE id = ?`,
+      [parsed.data.title, slug, parsed.data.hasChords, parsed.data.isPublished, new Date(), id],
+    );
+    await tx.execute(
+      `INSERT INTO song_contents (songId, contentJson)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE contentJson = VALUES(contentJson), updatedAt = CURRENT_TIMESTAMP(3)`,
+      [id, JSON.stringify(parsed.data.content)],
+    );
   });
 
   return Response.json(await getAdminSnapshot());
@@ -70,7 +72,7 @@ export async function DELETE(
   }
 
   const id = idSchema.parse((await params).id);
-  await prisma.song.delete({ where: { id } }).catch(() => null);
+  await db.execute("DELETE FROM songs WHERE id = ?", [id]).catch(() => null);
 
   return Response.json(await getAdminSnapshot());
 }

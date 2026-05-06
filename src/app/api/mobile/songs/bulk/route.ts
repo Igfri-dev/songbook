@@ -1,7 +1,19 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { bulkSongsSchema, normalizeSongContent } from "@/lib/song-content";
 
 export const dynamic = "force-dynamic";
+
+function parseContent(value: unknown) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
 
 export async function POST(request: Request) {
   const parsed = bulkSongsSchema.safeParse(await request.json().catch(() => null));
@@ -10,22 +22,33 @@ export async function POST(request: Request) {
     return Response.json({ error: "Datos invalidos" }, { status: 400 });
   }
 
-  const songs = await prisma.song.findMany({
-    where: {
-      slug: { in: parsed.data.slugs },
-      isPublished: true,
-    },
-    include: { content: true },
-    orderBy: [{ title: "asc" }],
-  });
+  if (parsed.data.slugs.length === 0) {
+    return Response.json({ songs: [] });
+  }
+
+  const placeholders = parsed.data.slugs.map(() => "?").join(", ");
+  const songs = await db.query<{
+    slug: string;
+    title: string;
+    hasChords: number | boolean;
+    contentVersion: Date | string;
+    contentJson: unknown;
+  }>(
+    `SELECT s.slug, s.title, s.hasChords, s.contentVersion, sc.contentJson
+       FROM songs s
+       LEFT JOIN song_contents sc ON sc.songId = s.id
+      WHERE s.isPublished = TRUE AND s.slug IN (${placeholders})
+      ORDER BY s.title ASC`,
+    parsed.data.slugs,
+  );
 
   return Response.json({
     songs: songs.map((song) => ({
       slug: song.slug,
       title: song.title,
-      hasChords: song.hasChords,
-      contentVersion: song.contentVersion.toISOString(),
-      content: normalizeSongContent(song.content?.contentJson),
+      hasChords: Boolean(song.hasChords),
+      contentVersion: (song.contentVersion instanceof Date ? song.contentVersion : new Date(song.contentVersion)).toISOString(),
+      content: normalizeSongContent(parseContent(song.contentJson)),
     })),
   });
 }

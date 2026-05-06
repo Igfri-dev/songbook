@@ -33,14 +33,3 @@ export function getDatabaseConfig(): DatabaseConfig {
     connectionLimit: positiveIntegerEnv("DB_CONNECTION_LIMIT", 10),
   };
 }
-
-export function getDatabaseUrl() {
-  const config = getDatabaseConfig();
-  const user = encodeURIComponent(config.user);
-  const auth = config.password ? `${user}:${encodeURIComponent(config.password)}` : user;
-  const query = new URLSearchParams({
-    connection_limit: String(config.connectionLimit),
-  }).toString();
-
-  return `mysql://${auth}@${config.host}:${config.port}/${encodeURIComponent(config.database)}?${query}`;
-}

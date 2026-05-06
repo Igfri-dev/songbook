@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { loginSchema } from "@/lib/song-content";
 
 export const authOptions: NextAuthOptions = {
@@ -27,11 +27,19 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const user = await prisma.user.findFirst({
-          where: parsed.data.identifier.includes("@")
-            ? { email: parsed.data.identifier }
-            : { username: parsed.data.identifier },
-        });
+        const user = await db.queryOne<{
+          id: number;
+          name: string;
+          email: string;
+          passwordHash: string | null;
+          role: "ADMIN";
+        }>(
+          `SELECT id, name, email, passwordHash, role
+             FROM users
+            WHERE ${parsed.data.identifier.includes("@") ? "email" : "username"} = ?
+            LIMIT 1`,
+          [parsed.data.identifier],
+        );
 
         if (!user?.passwordHash) {
           return null;

@@ -1,6 +1,6 @@
 import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
-import { prisma } from "@/lib/prisma";
+import { transaction } from "@/lib/db";
 import { orderPayloadSchema } from "@/lib/song-content";
 
 export const dynamic = "force-dynamic";
@@ -18,26 +18,21 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Datos invalidos" }, { status: 400 });
   }
 
-  await prisma.$transaction([
-    ...parsed.data.categories.map((category) =>
-      prisma.songCategory.update({
-        where: { id: category.id },
-        data: {
-          parentId: category.parentId,
-          sortOrder: category.sortOrder,
-        },
-      }),
-    ),
-    ...parsed.data.categorySongs.map((link) =>
-      prisma.categorySong.update({
-        where: { id: link.id },
-        data: {
-          categoryId: link.categoryId,
-          sortOrder: link.sortOrder,
-        },
-      }),
-    ),
-  ]);
+  await transaction(async (tx) => {
+    for (const category of parsed.data.categories) {
+      await tx.execute(
+        "UPDATE song_categories SET parentId = ?, sortOrder = ? WHERE id = ?",
+        [category.parentId, category.sortOrder, category.id],
+      );
+    }
+
+    for (const link of parsed.data.categorySongs) {
+      await tx.execute(
+        "UPDATE category_songs SET categoryId = ?, sortOrder = ? WHERE id = ?",
+        [link.categoryId, link.sortOrder, link.id],
+      );
+    }
+  });
 
   return Response.json(await getAdminSnapshot());
 }

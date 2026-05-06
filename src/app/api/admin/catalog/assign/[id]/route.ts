@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export async function DELETE(
   }
 
   const id = idSchema.parse((await params).id);
-  await prisma.categorySong.delete({ where: { id } }).catch(() => null);
+  await db.execute("DELETE FROM category_songs WHERE id = ?", [id]).catch(() => null);
 
   return Response.json(await getAdminSnapshot());
 }

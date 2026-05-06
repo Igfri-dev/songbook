@@ -1,6 +1,6 @@
 import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
-import { prisma } from "@/lib/prisma";
+import { transaction } from "@/lib/db";
 import { assignSongSchema } from "@/lib/song-content";
 
 export const dynamic = "force-dynamic";
@@ -18,61 +18,47 @@ export async function POST(request: Request) {
     return Response.json({ error: "Datos invalidos" }, { status: 400 });
   }
 
-  await prisma.$transaction(async (tx) => {
-    const last = await tx.categorySong.findFirst({
-      where: { categoryId: parsed.data.categoryId },
-      orderBy: { sortOrder: "desc" },
-    });
+  await transaction(async (tx) => {
+    const last = await tx.queryOne<{ sortOrder: number }>(
+      "SELECT sortOrder FROM category_songs WHERE categoryId = ? ORDER BY sortOrder DESC LIMIT 1",
+      [parsed.data.categoryId],
+    );
     const sortOrder = (last?.sortOrder ?? -1) + 1;
 
     if (parsed.data.categorySongId) {
-      const current = await tx.categorySong.findUnique({
-        where: { id: parsed.data.categorySongId },
-      });
+      const current = await tx.queryOne<{ id: number; songId: number }>(
+        "SELECT id, songId FROM category_songs WHERE id = ? LIMIT 1",
+        [parsed.data.categorySongId],
+      );
 
       if (!current) {
         return;
       }
 
-      const duplicate = await tx.categorySong.findUnique({
-        where: {
-          categoryId_songId: {
-            categoryId: parsed.data.categoryId,
-            songId: current.songId,
-          },
-        },
-      });
+      const duplicate = await tx.queryOne<{ id: number }>(
+        "SELECT id FROM category_songs WHERE categoryId = ? AND songId = ? LIMIT 1",
+        [parsed.data.categoryId, current.songId],
+      );
 
       if (duplicate && duplicate.id !== current.id) {
-        await tx.categorySong.delete({ where: { id: current.id } });
-        await tx.categorySong.update({
-          where: { id: duplicate.id },
-          data: { sortOrder },
-        });
+        await tx.execute("DELETE FROM category_songs WHERE id = ?", [current.id]);
+        await tx.execute("UPDATE category_songs SET sortOrder = ? WHERE id = ?", [sortOrder, duplicate.id]);
       } else {
-        await tx.categorySong.update({
-          where: { id: current.id },
-          data: { categoryId: parsed.data.categoryId, sortOrder },
-        });
+        await tx.execute(
+          "UPDATE category_songs SET categoryId = ?, sortOrder = ? WHERE id = ?",
+          [parsed.data.categoryId, sortOrder, current.id],
+        );
       }
 
       return;
     }
 
-    await tx.categorySong.upsert({
-      where: {
-        categoryId_songId: {
-          categoryId: parsed.data.categoryId,
-          songId: parsed.data.songId,
-        },
-      },
-      update: { sortOrder },
-      create: {
-        categoryId: parsed.data.categoryId,
-        songId: parsed.data.songId,
-        sortOrder,
-      },
-    });
+    await tx.execute(
+      `INSERT INTO category_songs (categoryId, songId, sortOrder)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE sortOrder = VALUES(sortOrder)`,
+      [parsed.data.categoryId, parsed.data.songId, sortOrder],
+    );
   });
 
   return Response.json(await getAdminSnapshot());

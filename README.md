@@ -6,7 +6,7 @@ Webapp Next.js App Router para administrar y publicar un cancionero digital con 
 
 - Next.js 16 App Router
 - TypeScript
-- Prisma ORM 7
+- MariaDB driver directo
 - MariaDB/MySQL en XAMPP, puerto `3307`
 - TailwindCSS 4
 - Auth.js / NextAuth con credenciales
@@ -49,35 +49,13 @@ SMTP_FROM="Cancionero <no-reply@cancionero.local>"
 
 `APP_URL` se usa para generar los enlaces de invitacion de usuarios. `SMTP_SECURE` acepta `true`/`false`; normalmente es `true` con puerto `465` y `false` con `587`.
 
-3. Crear base de datos si no existe:
+3. Crear base de datos y tablas:
 
 ```bash
-/Applications/XAMPP/xamppfiles/bin/mysql -h 127.0.0.1 -P 3307 -u root -e "CREATE DATABASE IF NOT EXISTS cancionero CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -h 127.0.0.1 -P 3307 -u root < database.sql
 ```
 
-## Prisma
-
-Generar cliente:
-
-```bash
-npm run prisma:generate
-```
-
-Aplicar migraciones:
-
-```bash
-npm run db:migrate
-```
-
-Si XAMPP muestra `Column count of mysql.proc is wrong`, ejecuta `mysql_upgrade` con el usuario dueño del servidor MariaDB de XAMPP y repite la migracion.
-
-Seed:
-
-```bash
-npm run db:seed
-```
-
-Usuario inicial:
+`database.sql` crea la base `cancionero`, todas las tablas y este usuario inicial:
 
 - Email: `admin@cancionero.local`
 - Usuario: `admin`
@@ -117,5 +95,5 @@ La sincronizacion Android debe comparar `mainVersion`; si cambia, compara cada `
 ```bash
 npm run lint
 npm run build
-npm run db:studio
+npm run db:import-entrada -- ./Entrada.json
 ```

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { makeUniqueSlug } from "@/lib/slug";
 import { categoryPayloadSchema } from "@/lib/song-content";
 
@@ -27,20 +27,17 @@ export async function PUT(
   }
 
   const slug = await makeUniqueSlug(parsed.data.name, async (candidate) => {
-    const existing = await prisma.songCategory.findFirst({
-      where: { slug: candidate, id: { not: id } },
-    });
+    const existing = await db.queryOne<{ id: number }>(
+      "SELECT id FROM song_categories WHERE slug = ? AND id <> ? LIMIT 1",
+      [candidate, id],
+    );
     return Boolean(existing);
   });
 
-  await prisma.songCategory.update({
-    where: { id },
-    data: {
-      name: parsed.data.name,
-      slug,
-      parentId: parsed.data.parentId ?? null,
-    },
-  });
+  await db.execute(
+    "UPDATE song_categories SET name = ?, slug = ?, parentId = ? WHERE id = ?",
+    [parsed.data.name, slug, parsed.data.parentId ?? null, id],
+  );
 
   return Response.json(await getAdminSnapshot());
 }
@@ -56,7 +53,7 @@ export async function DELETE(
   }
 
   const id = idSchema.parse((await params).id);
-  await prisma.songCategory.delete({ where: { id } }).catch(() => null);
+  await db.execute("DELETE FROM song_categories WHERE id = ?", [id]).catch(() => null);
 
   return Response.json(await getAdminSnapshot());
 }

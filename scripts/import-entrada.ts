@@ -1,8 +1,6 @@
 import "dotenv/config";
 import fs from "node:fs";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient } from "../src/generated/prisma/client";
-import { getDatabaseConfig } from "../src/lib/db-env";
+import { closeDbPool, insertedId, transaction, db } from "../src/lib/db";
 import { slugify } from "../src/lib/slug";
 
 type RawSong = {
@@ -25,9 +23,6 @@ const raw = JSON.parse(fs.readFileSync(inputPath, "utf8")) as RawSong[];
 if (!Array.isArray(raw)) {
   throw new Error("Entrada.json debe ser un arreglo de canciones");
 }
-
-const adapter = new PrismaMariaDb(getDatabaseConfig());
-const prisma = new PrismaClient({ adapter });
 
 function parseChordLine(line: string) {
   const chords: Chord[] = [];
@@ -142,25 +137,22 @@ async function main() {
   const usedSongSlugs = new Set<string>();
   const usedCategorySlugs = new Set<string>();
 
-  await prisma.$transaction(async (tx) => {
-    await tx.categorySong.deleteMany();
-    await tx.songContent.deleteMany();
-    await tx.song.deleteMany();
-    await tx.songCategory.deleteMany();
-    await tx.catalogVersion.deleteMany();
+  await transaction(async (tx) => {
+    await tx.execute("DELETE FROM category_songs");
+    await tx.execute("DELETE FROM song_contents");
+    await tx.execute("DELETE FROM songs");
+    await tx.execute("DELETE FROM song_categories");
+    await tx.execute("DELETE FROM catalog_versions");
 
     const categoryMap = new Map<string, number>();
     const categories = [...new Set(raw.map((song) => song.categoria?.trim() || "Entrada"))];
 
     for (const [index, name] of categories.entries()) {
-      const category = await tx.songCategory.create({
-        data: {
-          name,
-          slug: uniqueSlug(name, usedCategorySlugs),
-          sortOrder: index,
-        },
-      });
-      categoryMap.set(name, category.id);
+      const category = await tx.execute(
+        "INSERT INTO song_categories (name, slug, sortOrder) VALUES (?, ?, ?)",
+        [name, uniqueSlug(name, usedCategorySlugs), index],
+      );
+      categoryMap.set(name, insertedId(category));
     }
 
     for (const [index, item] of raw.entries()) {
@@ -175,55 +167,52 @@ async function main() {
         throw new Error(`Categoria no encontrada: ${categoryName}`);
       }
 
-      const song = await tx.song.create({
-        data: {
-          title: item.titulo.trim(),
-          slug: uniqueSlug(item.titulo, usedSongSlugs),
-          hasChords: Boolean(item.tiene_acordes),
-          isPublished: true,
-          contentVersion: now,
-          content: {
-            create: {
-              contentJson: parseSongContent(item.letra ?? ""),
-            },
-          },
-        },
-      });
+      const song = await tx.execute(
+        `INSERT INTO songs (title, slug, hasChords, isPublished, contentVersion)
+         VALUES (?, ?, ?, TRUE, ?)`,
+        [item.titulo.trim(), uniqueSlug(item.titulo, usedSongSlugs), Boolean(item.tiene_acordes), now],
+      );
+      const songId = insertedId(song);
 
-      await tx.categorySong.create({
-        data: {
-          categoryId,
-          songId: song.id,
-          sortOrder: item.numero ?? index,
-        },
-      });
+      await tx.execute(
+        "INSERT INTO song_contents (songId, contentJson) VALUES (?, ?)",
+        [songId, JSON.stringify(parseSongContent(item.letra ?? ""))],
+      );
+
+      await tx.execute(
+        "INSERT INTO category_songs (categoryId, songId, sortOrder) VALUES (?, ?, ?)",
+        [categoryId, songId, item.numero ?? index],
+      );
     }
 
-    await tx.catalogVersion.create({
-      data: {
-        mainVersion: now,
-        publishedAt: now,
-        notes: `Importado desde Entrada.json (${raw.length} canciones)`,
-      },
-    });
+    await tx.execute(
+      "INSERT INTO catalog_versions (mainVersion, publishedAt, notes) VALUES (?, ?, ?)",
+      [now, now, `Importado desde Entrada.json (${raw.length} canciones)`],
+    );
   });
 
   const [categories, songs, contents, links, versions] = await Promise.all([
-    prisma.songCategory.count(),
-    prisma.song.count(),
-    prisma.songContent.count(),
-    prisma.categorySong.count(),
-    prisma.catalogVersion.count(),
+    db.queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM song_categories"),
+    db.queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM songs"),
+    db.queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM song_contents"),
+    db.queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM category_songs"),
+    db.queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM catalog_versions"),
   ]);
 
-  console.log(JSON.stringify({ categories, songs, contents, links, versions }, null, 2));
+  console.log(JSON.stringify({
+    categories: Number(categories?.count ?? 0),
+    songs: Number(songs?.count ?? 0),
+    contents: Number(contents?.count ?? 0),
+    links: Number(links?.count ?? 0),
+    versions: Number(versions?.count ?? 0),
+  }, null, 2));
 }
 
 main()
   .catch((error) => {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await closeDbPool();
   });
