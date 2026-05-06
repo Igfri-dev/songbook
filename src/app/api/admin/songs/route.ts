@@ -1,4 +1,4 @@
-import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
+import { requirePanelSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
 import { insertedId, db, transaction } from "@/lib/db";
 import { makeUniqueSlug } from "@/lib/slug";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    await requireAdminSession();
+    await requirePanelSession();
   } catch {
     return unauthorizedResponse();
   }

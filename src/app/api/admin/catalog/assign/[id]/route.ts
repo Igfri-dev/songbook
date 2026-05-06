@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
+import { requirePanelSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
 import { db } from "@/lib/db";
 
@@ -12,7 +12,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireAdminSession();
+    await requirePanelSession();
   } catch {
     return unauthorizedResponse();
   }

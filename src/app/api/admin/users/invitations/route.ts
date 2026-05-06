@@ -1,5 +1,5 @@
-import { forbiddenResponse, requirePanelSession, unauthorizedResponse, validationResponse } from "@/lib/admin";
-import { getAdminSnapshot, getUserManagementSnapshot } from "@/lib/catalog";
+import { requirePanelSession, unauthorizedResponse, validationResponse } from "@/lib/admin";
+import { getAdminSnapshot } from "@/lib/catalog";
 import { db, transaction } from "@/lib/db";
 import type { UserRole } from "@/lib/roles";
 import { inviteUserSchema } from "@/lib/song-content";
@@ -22,10 +22,6 @@ type ExistingUser = {
   role: UserRole;
 };
 
-async function snapshotFor(role: UserRole) {
-  return role === "ADMIN" ? getAdminSnapshot() : getUserManagementSnapshot();
-}
-
 export async function POST(request: Request) {
   let session;
 
@@ -44,14 +40,9 @@ export async function POST(request: Request) {
   const email = parsed.data.email;
   const requestedRole = parsed.data.role;
   const username = usernameFromEmail(email);
-  const actorRole = session.user?.role ?? "USER";
 
   if (!username) {
     return Response.json({ error: "No se pudo derivar un usuario desde el correo." }, { status: 400 });
-  }
-
-  if (actorRole !== "ADMIN" && requestedRole === "ADMIN") {
-    return forbiddenResponse();
   }
 
   const [existingEmailUser, existingUsernameUser] = await Promise.all([
@@ -65,10 +56,6 @@ export async function POST(request: Request) {
     ),
   ]);
 
-  if (actorRole !== "ADMIN" && existingEmailUser?.role === "ADMIN") {
-    return forbiddenResponse();
-  }
-
   if (existingUsernameUser && existingUsernameUser.email !== email) {
     return Response.json({
       error: `El usuario "${username}" ya esta usado por otro correo.`,
@@ -79,7 +66,7 @@ export async function POST(request: Request) {
   const tokenHash = hashInvitationToken(token);
   const setupUrl = setupPasswordUrl(token);
   const createdById = session.user?.id ? Number(session.user.id) : null;
-  const role = existingEmailUser?.role ?? (actorRole === "ADMIN" ? requestedRole : "USER");
+  const role = existingEmailUser?.role ?? requestedRole;
   const action = existingEmailUser?.passwordHash ? "reset" : "create";
 
   await transaction(async (tx) => {
@@ -126,7 +113,7 @@ export async function POST(request: Request) {
   }
 
   return Response.json({
-    snapshot: await snapshotFor(actorRole),
+    snapshot: await getAdminSnapshot(),
     delivery,
     action,
   });

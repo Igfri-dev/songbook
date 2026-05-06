@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
+import { requirePanelSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
 import { db } from "@/lib/db";
 
@@ -11,7 +11,7 @@ const publishSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    await requireAdminSession();
+    await requirePanelSession();
   } catch {
     return unauthorizedResponse();
   }

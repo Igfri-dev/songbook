@@ -34,9 +34,8 @@ const tabs: { id: Tab; label: string; icon: typeof Music2 }[] = [
 ];
 
 export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnapshot }) {
-  const isAdmin = initialSnapshot.currentUser?.role === "ADMIN";
   const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [activeTab, setActiveTab] = useState<Tab>(isAdmin ? "songs" : "users");
+  const [activeTab, setActiveTab] = useState<Tab>("songs");
   const [editingSongId, setEditingSongId] = useState<number | null>(snapshot.songs[0]?.id ?? null);
   const [noticeDialog, setNoticeDialog] = useState<NoticeDialogState | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
@@ -53,11 +52,11 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   );
   const tabOptions = useMemo<CustomSelectOption[]>(
     () =>
-      tabs.filter((tab) => isAdmin || tab.id === "users").map((tab) => ({
+      tabs.map((tab) => ({
         value: tab.id,
         label: tab.label,
       })),
-    [isAdmin],
+    [],
   );
   const songOptions = useMemo<CustomSelectOption[]>(
     () => [
@@ -157,7 +156,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   }
 
   async function refresh() {
-    await mutate(isAdmin ? "/api/admin/catalog" : "/api/admin/users", { method: "GET" });
+    await mutate("/api/admin/catalog", { method: "GET" });
   }
 
   async function inviteUser(email: string, role: UserRole) {
@@ -409,7 +408,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
         <UserInvitePanel
           users={snapshot.users}
           currentUserId={snapshot.currentUser?.id}
-          canCreateAdmin={snapshot.currentUser?.role === "ADMIN"}
+          canCreateAdmin
           canDeleteUsers={snapshot.currentUser?.role === "ADMIN"}
           onInvite={inviteUser}
           onResetPassword={resetUserPassword}

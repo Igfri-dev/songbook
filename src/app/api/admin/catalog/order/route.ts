@@ -1,4 +1,4 @@
-import { requireAdminSession, unauthorizedResponse } from "@/lib/admin";
+import { requirePanelSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
 import { transaction } from "@/lib/db";
 import { orderPayloadSchema } from "@/lib/song-content";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request) {
   try {
-    await requireAdminSession();
+    await requirePanelSession();
   } catch {
     return unauthorizedResponse();
   }
