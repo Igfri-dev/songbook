@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Navbar } from "@/components/navbar";
 import "./globals.css";
 
@@ -39,11 +40,13 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
+      <head />
       <body className="min-h-full bg-stone-50 text-stone-950">
+        <Script id="cancionero-theme" strategy="beforeInteractive">
+          {themeScript}
+        </Script>
         <div className="flex min-h-screen flex-col">
           <Navbar />
           {children}
