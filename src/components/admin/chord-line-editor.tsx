@@ -1,7 +1,12 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Plus, Trash2 } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { SongLineData } from "@/lib/song-content";
+
+type ChordStyle = CSSProperties & {
+  "--at": number;
+};
 
 type ChordLineEditorProps = {
   line: SongLineData;
@@ -82,6 +87,30 @@ export function ChordLineEditor({
           className="h-10 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
           placeholder="Letra de la linea"
         />
+      </div>
+
+      <div
+        className="rounded-md border border-stone-200 bg-stone-50 px-3 py-2"
+        aria-label="Previsualizacion de linea"
+      >
+        <div className="chord-line">
+          {line.chords.length > 0 ? (
+            <div className="chord-layer" aria-hidden="true">
+              {[...line.chords]
+                .sort((a, b) => a.at - b.at)
+                .map((chord, index) => (
+                  <span
+                    key={`${chord.chord}-${chord.at}-${index}`}
+                    className="chord-token"
+                    style={{ "--at": Math.max(0, chord.at) } as ChordStyle}
+                  >
+                    {chord.chord}
+                  </span>
+                ))}
+            </div>
+          ) : null}
+          <span className="lyrics-line">{line.lyrics || "\u00a0"}</span>
+        </div>
       </div>
 
       <div className="grid gap-2">

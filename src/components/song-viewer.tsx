@@ -2,7 +2,17 @@ import { Music2 } from "lucide-react";
 import type { PublicSongPayload } from "@/lib/catalog";
 import { StructuredSongRenderer } from "@/components/structured-song-renderer";
 
-export function SongViewer({ song, loading }: { song: PublicSongPayload | null; loading?: boolean }) {
+export function SongViewer({
+  song,
+  loading,
+  fontScale = 1,
+  transpose = 0,
+}: {
+  song: PublicSongPayload | null;
+  loading?: boolean;
+  fontScale?: number;
+  transpose?: number;
+}) {
   if (!song) {
     return (
       <section className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-stone-300 bg-white p-8 text-center">
@@ -29,7 +39,7 @@ export function SongViewer({ song, loading }: { song: PublicSongPayload | null; 
 
       {loading ? <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Cargando...</p> : null}
 
-      <StructuredSongRenderer content={song.content} />
+      <StructuredSongRenderer content={song.content} fontScale={fontScale} transpose={transpose} />
     </article>
   );
 }

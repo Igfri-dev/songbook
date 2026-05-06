@@ -48,7 +48,7 @@ export function LoginForm() {
           autoComplete="username"
           required
           className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-          placeholder="admin o admin@cancionero.local"
+          placeholder="Usuario o Correo"
         />
       </label>
 
@@ -60,7 +60,7 @@ export function LoginForm() {
           autoComplete="current-password"
           required
           className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-          placeholder="Admin123!"
+          placeholder="Contraseña"
         />
       </label>
 

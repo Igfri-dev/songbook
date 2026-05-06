@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { SongContentData } from "@/lib/song-content";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 const sectionLabels: Record<string, string> = {
   intro: "Intro",
@@ -63,6 +64,7 @@ type InteractiveSongPreviewProps = {
     chordIndex: number,
     chord: string,
   ) => void;
+  onSectionChordsCopy: (sourceSectionIndex: number, targetSectionIndex: number) => void;
 };
 
 let measureCanvas: HTMLCanvasElement | null = null;
@@ -73,6 +75,7 @@ export function InteractiveSongPreview({
   onChordAdd,
   onChordDelete,
   onChordEdit,
+  onSectionChordsCopy,
 }: InteractiveSongPreviewProps) {
   const [selection, setSelection] = useState<Selection | null>(null);
 
@@ -210,160 +213,204 @@ export function InteractiveSongPreview({
     setSelection(null);
   }
 
+  function chordCopyOptions(targetSectionIndex: number): CustomSelectOption[] {
+    const options: CustomSelectOption[] = [];
+
+    content.sections.forEach((section, sectionIndex) => {
+      const chordCount = section.lines.reduce((total, line) => total + line.chords.length, 0);
+
+      if (sectionIndex === targetSectionIndex || chordCount === 0) {
+        return;
+      }
+
+      const chordLineCount = section.lines.filter((line) => line.chords.length > 0).length;
+
+      options.push({
+        value: String(sectionIndex),
+        label: sectionTitle(section, sectionIndex),
+        description: `${chordLineCount} ${chordLineCount === 1 ? "linea" : "lineas"} con ${chordCount} acordes`,
+      });
+    });
+
+    return options;
+  }
+
   return (
     <div className="grid gap-8">
-      {content.sections.map((section, sectionIndex) => (
-        <section key={`${section.type}-${sectionIndex}`} className="grid gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-semibold text-stone-900">
-              {section.title || sectionLabels[section.type] || "Seccion"}
-            </h2>
-            <span className="h-px flex-1 bg-stone-200" />
-          </div>
+      {content.sections.map((section, sectionIndex) => {
+        const copyOptions = chordCopyOptions(sectionIndex);
 
-          <div className="grid gap-1">
-            {section.lines.map((line, lineIndex) => (
-              <div
-                key={`${sectionIndex}-${lineIndex}`}
-                className="chord-line"
-                data-editable-chord-line
-              >
+        return (
+          <section key={`${section.type}-${sectionIndex}`} className="grid gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <h2 className="truncate text-base font-semibold text-stone-900">
+                  {sectionTitle(section, sectionIndex)}
+                </h2>
+                <span className="h-px flex-1 bg-stone-200" />
+              </div>
+              {copyOptions.length > 0 ? (
+                <CustomSelect
+                  value=""
+                  options={copyOptions}
+                  placeholder="Copiar acordes de"
+                  className="sm:w-60"
+                  onChange={(value) => {
+                    onSectionChordsCopy(Number(value), sectionIndex);
+                    setSelection(null);
+                  }}
+                />
+              ) : null}
+            </div>
+
+            <div className="grid gap-1">
+              {section.lines.map((line, lineIndex) => (
                 <div
-                  className="chord-layer chord-layer-editable"
-                  onClick={(event) => selectBlankSpace(event, sectionIndex, lineIndex)}
+                  key={`${sectionIndex}-${lineIndex}`}
+                  className="chord-line"
+                  data-editable-chord-line
                 >
-                  {line.chords.map((chord, chordIndex) => (
-                    <button
-                      key={`${chord.chord}-${chordIndex}`}
-                      type="button"
-                      data-chord-token
-                      className="chord-token chord-token-editable"
-                      style={{ "--at": Math.max(0, chord.at) } as ChordStyle}
-                      onPointerDown={(event) =>
-                        beginDrag(event, sectionIndex, lineIndex, chordIndex, chord.chord)
-                      }
-                      aria-label={`Mover o editar acorde ${chord.chord}`}
-                    >
-                      {chord.chord}
-                    </button>
-                  ))}
-
-                  {selection?.type === "add" &&
-                  selection.sectionIndex === sectionIndex &&
-                  selection.lineIndex === lineIndex ? (
-                    <div
-                      data-chord-popover
-                      className="chord-popover"
-                      style={{ "--at": selection.at } as ChordStyle}
-                    >
-                      <input
-                        autoFocus
-                        value={selection.chord}
-                        onChange={(event) =>
-                          setSelection({ ...selection, chord: event.target.value })
+                  <div
+                    className="chord-layer chord-layer-editable"
+                    onClick={(event) => selectBlankSpace(event, sectionIndex, lineIndex)}
+                  >
+                    {line.chords.map((chord, chordIndex) => (
+                      <button
+                        key={`${chord.chord}-${chordIndex}`}
+                        type="button"
+                        data-chord-token
+                        className="chord-token chord-token-editable"
+                        style={{ "--at": Math.max(0, chord.at) } as ChordStyle}
+                        onPointerDown={(event) =>
+                          beginDrag(event, sectionIndex, lineIndex, chordIndex, chord.chord)
                         }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            addSelectedChord();
-                          }
-                          if (event.key === "Escape") {
-                            setSelection(null);
-                          }
-                        }}
-                        className="h-8 w-20 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
-                        placeholder="MI"
-                      />
-                      <button
-                        type="button"
-                        onClick={addSelectedChord}
-                        className="grid size-8 place-items-center rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
-                        aria-label="Agregar acorde"
+                        aria-label={`Mover o editar acorde ${chord.chord}`}
                       >
-                        <Plus aria-hidden="true" size={15} />
+                        {chord.chord}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelection(null)}
-                        className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50"
-                        aria-label="Cerrar"
-                      >
-                        <X aria-hidden="true" size={15} />
-                      </button>
-                    </div>
-                  ) : null}
+                    ))}
 
-                  {selection?.type === "chord" &&
-                  selection.sectionIndex === sectionIndex &&
-                  selection.lineIndex === lineIndex ? (
-                    <div
-                      data-chord-popover
-                      className="chord-popover"
-                      style={{ "--at": selection.at } as ChordStyle}
-                    >
-                      {selection.editing ? (
-                        <>
-                          <input
-                            autoFocus
-                            value={selection.chord}
-                            onChange={(event) =>
-                              setSelection({ ...selection, chord: event.target.value })
+                    {selection?.type === "add" &&
+                    selection.sectionIndex === sectionIndex &&
+                    selection.lineIndex === lineIndex ? (
+                      <div
+                        data-chord-popover
+                        className="chord-popover"
+                        style={{ "--at": selection.at } as ChordStyle}
+                      >
+                        <input
+                          autoFocus
+                          value={selection.chord}
+                          onChange={(event) =>
+                            setSelection({ ...selection, chord: event.target.value })
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              addSelectedChord();
                             }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                saveSelectedChord();
-                              }
-                              if (event.key === "Escape") {
-                                setSelection({ ...selection, editing: false });
-                              }
-                            }}
-                            className="h-8 w-20 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
-                          />
-                          <button
-                            type="button"
-                            onClick={saveSelectedChord}
-                            className="grid size-8 place-items-center rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
-                            aria-label="Guardar acorde"
-                          >
-                            <Check aria-hidden="true" size={15} />
-                          </button>
-                        </>
-                      ) : (
+                            if (event.key === "Escape") {
+                              setSelection(null);
+                            }
+                          }}
+                          className="h-8 w-20 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
+                          placeholder="MI"
+                        />
                         <button
                           type="button"
-                          onClick={() => setSelection({ ...selection, editing: true })}
-                          className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-700 hover:bg-stone-50"
-                          aria-label="Editar acorde"
+                          onClick={addSelectedChord}
+                          className="grid size-8 place-items-center rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
+                          aria-label="Agregar acorde"
                         >
-                          <Edit3 aria-hidden="true" size={15} />
+                          <Plus aria-hidden="true" size={15} />
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={deleteSelectedChord}
-                        className="grid size-8 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
-                        aria-label="Eliminar acorde"
+                        <button
+                          type="button"
+                          onClick={() => setSelection(null)}
+                          className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50"
+                          aria-label="Cerrar"
+                        >
+                          <X aria-hidden="true" size={15} />
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {selection?.type === "chord" &&
+                    selection.sectionIndex === sectionIndex &&
+                    selection.lineIndex === lineIndex ? (
+                      <div
+                        data-chord-popover
+                        className="chord-popover"
+                        style={{ "--at": selection.at } as ChordStyle}
                       >
-                        <Trash2 aria-hidden="true" size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelection(null)}
-                        className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50"
-                        aria-label="Cerrar"
-                      >
-                        <X aria-hidden="true" size={15} />
-                      </button>
-                    </div>
-                  ) : null}
+                        {selection.editing ? (
+                          <>
+                            <input
+                              autoFocus
+                              value={selection.chord}
+                              onChange={(event) =>
+                                setSelection({ ...selection, chord: event.target.value })
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  saveSelectedChord();
+                                }
+                                if (event.key === "Escape") {
+                                  setSelection({ ...selection, editing: false });
+                                }
+                              }}
+                              className="h-8 w-20 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
+                            />
+                            <button
+                              type="button"
+                              onClick={saveSelectedChord}
+                              className="grid size-8 place-items-center rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
+                              aria-label="Guardar acorde"
+                            >
+                              <Check aria-hidden="true" size={15} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSelection({ ...selection, editing: true })}
+                            className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-700 hover:bg-stone-50"
+                            aria-label="Editar acorde"
+                          >
+                            <Edit3 aria-hidden="true" size={15} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={deleteSelectedChord}
+                          className="grid size-8 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
+                          aria-label="Eliminar acorde"
+                        >
+                          <Trash2 aria-hidden="true" size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelection(null)}
+                          className="grid size-8 place-items-center rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50"
+                          aria-label="Cerrar"
+                        >
+                          <X aria-hidden="true" size={15} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <span className="lyrics-line">{line.lyrics || "\u00a0"}</span>
                 </div>
-                <span className="lyrics-line">{line.lyrics || "\u00a0"}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
+}
+
+function sectionTitle(section: SongContentData["sections"][number], index: number) {
+  return section.title || `${sectionLabels[section.type] || "Seccion"} ${index + 1}`;
 }
 
 function pointerToAt(clientX: number, lineElement: HTMLElement) {

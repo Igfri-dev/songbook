@@ -219,6 +219,35 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
     }));
   }
 
+  function copySectionChords(sourceSectionIndex: number, targetSectionIndex: number) {
+    setContent((current) => {
+      const sourceSection = current.sections[sourceSectionIndex];
+      const targetSection = current.sections[targetSectionIndex];
+
+      if (!sourceSection || !targetSection || sourceSectionIndex === targetSectionIndex) {
+        return current;
+      }
+
+      return {
+        sections: current.sections.map((section, sectionIndex) => {
+          if (sectionIndex !== targetSectionIndex) {
+            return section;
+          }
+
+          return {
+            ...section,
+            lines: section.lines.map((line, lineIndex) => {
+              const sourceLine = sourceSection.lines[lineIndex];
+              const chords = sourceLine?.chords.map((chord) => ({ ...chord })) ?? [];
+
+              return preventChordOverlap({ ...line, chords });
+            }),
+          };
+        }),
+      };
+    });
+  }
+
   function renderActionButtons() {
     return (
       <div className="flex flex-wrap items-center gap-2">
@@ -453,6 +482,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
             onChordAdd={addPreviewChord}
             onChordDelete={deletePreviewChord}
             onChordEdit={editPreviewChord}
+            onSectionChordsCopy={copySectionChords}
           />
         </div>
       </section>

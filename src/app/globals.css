@@ -262,12 +262,29 @@ textarea {
   line-height: 1.7;
 }
 
+.song-renderer .chord-line {
+  font-size: calc(1rem * var(--song-font-scale, 1));
+}
+
+.song-renderer .chord-token {
+  font-size: calc(0.82rem * var(--song-font-scale, 1));
+}
+
+.song-renderer .lyrics-line {
+  font-size: calc(1rem * var(--song-font-scale, 1));
+}
+
 .dark .lyrics-line {
   color: #e7e5e4;
 }
 
 @media (min-width: 768px) {
-  .lyrics-line {
+  .lyrics-line,
+  .song-renderer .lyrics-line {
     font-size: 1.05rem;
+  }
+
+  .song-renderer .lyrics-line {
+    font-size: calc(1.05rem * var(--song-font-scale, 1));
   }
 }
