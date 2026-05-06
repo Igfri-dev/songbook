@@ -65,6 +65,8 @@ mysql -h 127.0.0.1 -P 3307 -u root < database.sql
 
 En `/admin`, la seccion `Usuarios` permite crear cuentas ingresando solo el correo. El sistema deriva el usuario desde el correo antes del dominio, por ejemplo `test@dominio.com` genera el usuario `test`.
 
+Los usuarios `ADMIN` pueden crear usuarios normales o administradores, enviar links de cambio de password y eliminar usuarios. Los usuarios normales pueden entrar al panel de usuarios, crear otros usuarios normales y enviar links de cambio de password, pero no pueden crear administradores ni eliminar usuarios.
+
 Si `SMTP_HOST` esta configurado, Cancionero envia el enlace para crear password por correo. Si no hay SMTP configurado, el enlace se muestra en el panel admin y en la consola del servidor para desarrollo local.
 
 ## Ejecucion

@@ -1,6 +1,7 @@
-import { requireAdminSession, unauthorizedResponse, validationResponse } from "@/lib/admin";
-import { getAdminSnapshot } from "@/lib/catalog";
+import { forbiddenResponse, requirePanelSession, unauthorizedResponse, validationResponse } from "@/lib/admin";
+import { getAdminSnapshot, getUserManagementSnapshot } from "@/lib/catalog";
 import { db, transaction } from "@/lib/db";
+import type { UserRole } from "@/lib/roles";
 import { inviteUserSchema } from "@/lib/song-content";
 import {
   createInvitationToken,
@@ -13,11 +14,23 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type ExistingUser = {
+  id: number;
+  email: string;
+  username: string;
+  passwordHash: string | null;
+  role: UserRole;
+};
+
+async function snapshotFor(role: UserRole) {
+  return role === "ADMIN" ? getAdminSnapshot() : getUserManagementSnapshot();
+}
+
 export async function POST(request: Request) {
   let session;
 
   try {
-    session = await requireAdminSession();
+    session = await requirePanelSession();
   } catch {
     return unauthorizedResponse();
   }
@@ -29,25 +42,31 @@ export async function POST(request: Request) {
   }
 
   const email = parsed.data.email;
+  const requestedRole = parsed.data.role;
   const username = usernameFromEmail(email);
+  const actorRole = session.user?.role ?? "USER";
 
   if (!username) {
     return Response.json({ error: "No se pudo derivar un usuario desde el correo." }, { status: 400 });
   }
 
+  if (actorRole !== "ADMIN" && requestedRole === "ADMIN") {
+    return forbiddenResponse();
+  }
+
   const [existingEmailUser, existingUsernameUser] = await Promise.all([
-    db.queryOne<{ email: string; passwordHash: string | null }>(
-      "SELECT email, passwordHash FROM users WHERE email = ? LIMIT 1",
+    db.queryOne<ExistingUser>(
+      "SELECT id, email, username, passwordHash, role FROM users WHERE email = ? LIMIT 1",
       [email],
     ),
-    db.queryOne<{ email: string }>(
+    db.queryOne<Pick<ExistingUser, "email">>(
       "SELECT email FROM users WHERE username = ? LIMIT 1",
       [username],
     ),
   ]);
 
-  if (existingEmailUser?.passwordHash) {
-    return Response.json({ error: "Ya existe un usuario activo con ese correo." }, { status: 409 });
+  if (actorRole !== "ADMIN" && existingEmailUser?.role === "ADMIN") {
+    return forbiddenResponse();
   }
 
   if (existingUsernameUser && existingUsernameUser.email !== email) {
@@ -60,14 +79,23 @@ export async function POST(request: Request) {
   const tokenHash = hashInvitationToken(token);
   const setupUrl = setupPasswordUrl(token);
   const createdById = session.user?.id ? Number(session.user.id) : null;
+  const role = existingEmailUser?.role ?? (actorRole === "ADMIN" ? requestedRole : "USER");
+  const action = existingEmailUser?.passwordHash ? "reset" : "create";
 
   await transaction(async (tx) => {
-    await tx.execute(
-      `INSERT INTO users (name, email, username, passwordHash, role)
-       VALUES (?, ?, ?, NULL, 'ADMIN')
-       ON DUPLICATE KEY UPDATE name = VALUES(name), username = VALUES(username), role = 'ADMIN'`,
-      [username, email, username],
-    );
+    if (existingEmailUser) {
+      if (!existingEmailUser.passwordHash) {
+        await tx.execute(
+          "UPDATE users SET name = ?, username = ?, role = ? WHERE email = ?",
+          [username, username, role, email],
+        );
+      }
+    } else {
+      await tx.execute(
+        "INSERT INTO users (name, email, username, passwordHash, role) VALUES (?, ?, ?, NULL, ?)",
+        [username, email, username, role],
+      );
+    }
 
     await tx.execute(
       "UPDATE user_invitations SET acceptedAt = ? WHERE email = ? AND acceptedAt IS NULL",
@@ -75,12 +103,13 @@ export async function POST(request: Request) {
     );
 
     await tx.execute(
-      `INSERT INTO user_invitations (email, username, tokenHash, expiresAt, createdById)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO user_invitations (email, username, tokenHash, role, expiresAt, createdById)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         email,
         username,
         tokenHash,
+        role,
         invitationExpiry(),
         createdById && Number.isFinite(createdById) ? createdById : null,
       ],
@@ -97,7 +126,8 @@ export async function POST(request: Request) {
   }
 
   return Response.json({
-    snapshot: await getAdminSnapshot(),
+    snapshot: await snapshotFor(actorRole),
     delivery,
+    action,
   });
 }

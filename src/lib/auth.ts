@@ -3,6 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
+import { isUserRole, type UserRole } from "@/lib/roles";
 import { loginSchema } from "@/lib/song-content";
 
 export const authOptions: NextAuthOptions = {
@@ -32,7 +33,7 @@ export const authOptions: NextAuthOptions = {
           name: string;
           email: string;
           passwordHash: string | null;
-          role: "ADMIN";
+          role: UserRole;
         }>(
           `SELECT id, name, email, passwordHash, role
              FROM users
@@ -75,7 +76,7 @@ export const authOptions: NextAuthOptions = {
     session({ session, token }) {
       if (session.user) {
         session.user.id = String(token.id ?? token.sub ?? "");
-        session.user.role = token.role === "ADMIN" ? "ADMIN" : undefined;
+        session.user.role = isUserRole(token.role) ? token.role : undefined;
       }
 
       return session;

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { UserRole } from "@/lib/roles";
 import {
   type SongContentData,
   emptySongContent,
@@ -48,7 +49,7 @@ type UserRow = {
   email: string;
   username: string;
   passwordHash: string | null;
-  role: "ADMIN";
+  role: UserRole;
   createdAt: DateValue;
   updatedAt: DateValue;
 };
@@ -123,13 +124,17 @@ export type AdminUser = {
   name: string;
   email: string;
   username: string;
-  role: "ADMIN";
+  role: UserRole;
   hasPassword: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
 export type AdminSnapshot = {
+  currentUser?: {
+    id: number;
+    role: UserRole;
+  };
   categories: AdminCategory[];
   songs: AdminSong[];
   users: AdminUser[];
@@ -455,5 +460,28 @@ export async function getMobileIndex() {
   return {
     mainVersion: mainVersion ? iso(mainVersion) : new Date(0).toISOString(),
     tree,
+  };
+}
+
+export async function getUserManagementSnapshot(): Promise<AdminSnapshot> {
+  const users = await db.query<UserRow>(
+    "SELECT id, name, email, username, passwordHash, role, createdAt, updatedAt FROM users WHERE role = 'USER' ORDER BY createdAt DESC, email ASC",
+  );
+
+  return {
+    categories: [],
+    songs: [],
+    users: users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      hasPassword: Boolean(user.passwordHash),
+      createdAt: iso(user.createdAt),
+      updatedAt: iso(user.updatedAt),
+    })),
+    latestVersion: null,
+    versions: [],
   };
 }

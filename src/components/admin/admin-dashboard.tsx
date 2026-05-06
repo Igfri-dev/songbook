@@ -9,6 +9,7 @@ import { SongEditor, type SongEditorDraft, type SongEditorPayload } from "@/comp
 import { UserInvitePanel } from "@/components/admin/user-invite-panel";
 import { ActionModal } from "@/components/ui/action-modal";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+import type { UserRole } from "@/lib/roles";
 
 type Tab = "songs" | "categories" | "users" | "versions";
 type ConfirmDialogState = {
@@ -33,8 +34,9 @@ const tabs: { id: Tab; label: string; icon: typeof Music2 }[] = [
 ];
 
 export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnapshot }) {
+  const isAdmin = initialSnapshot.currentUser?.role === "ADMIN";
   const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [activeTab, setActiveTab] = useState<Tab>("songs");
+  const [activeTab, setActiveTab] = useState<Tab>(isAdmin ? "songs" : "users");
   const [editingSongId, setEditingSongId] = useState<number | null>(snapshot.songs[0]?.id ?? null);
   const [noticeDialog, setNoticeDialog] = useState<NoticeDialogState | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
@@ -51,11 +53,11 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   );
   const tabOptions = useMemo<CustomSelectOption[]>(
     () =>
-      tabs.map((tab) => ({
+      tabs.filter((tab) => isAdmin || tab.id === "users").map((tab) => ({
         value: tab.id,
         label: tab.label,
       })),
-    [],
+    [isAdmin],
   );
   const songOptions = useMemo<CustomSelectOption[]>(
     () => [
@@ -108,7 +110,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     }
 
     const next = (await response.json()) as AdminSnapshot;
-    setSnapshot(next);
+    setSnapshot({ ...next, currentUser: next.currentUser ?? snapshot.currentUser });
     setRevision((current) => current + 1);
     return next;
   }
@@ -155,10 +157,10 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   }
 
   async function refresh() {
-    await mutate("/api/admin/catalog", { method: "GET" });
+    await mutate(isAdmin ? "/api/admin/catalog" : "/api/admin/users", { method: "GET" });
   }
 
-  async function inviteUser(email: string) {
+  async function inviteUser(email: string, role: UserRole) {
     setNoticeDialog(null);
 
     let response: Response;
@@ -167,7 +169,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       response = await fetch("/api/admin/users/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, role }),
       });
     } catch {
       setNoticeDialog({
@@ -182,6 +184,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       error?: string;
       snapshot?: AdminSnapshot;
       delivery?: { sent: boolean; setupUrl: string };
+      action?: "create" | "reset";
     } | null;
 
     if (!response.ok || !body?.snapshot) {
@@ -193,15 +196,36 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       return;
     }
 
-    setSnapshot(body.snapshot);
+    setSnapshot({ ...body.snapshot, currentUser: body.snapshot.currentUser ?? snapshot.currentUser });
     setRevision((current) => current + 1);
     setNoticeDialog({
-      title: body.delivery?.sent ? "Invitacion enviada" : "Usuario creado",
+      title: body.action === "reset"
+        ? "Link de cambio generado"
+        : body.delivery?.sent ? "Invitacion enviada" : "Usuario creado",
       description: body.delivery?.sent
-        ? `Se envio un correo a ${email} para crear su password.`
-        : `No hay SMTP configurado. Link de creacion: ${body.delivery?.setupUrl ?? ""}`,
+        ? `Se envio un correo a ${email}.`
+        : `No hay SMTP configurado. Link: ${body.delivery?.setupUrl ?? ""}`,
       tone: "info",
     });
+  }
+
+  async function resetUserPassword(user: AdminSnapshot["users"][number]) {
+    await inviteUser(user.email, user.role);
+  }
+
+  async function deleteUser(user: AdminSnapshot["users"][number]) {
+    const confirmed = await requestConfirmation({
+      title: "Eliminar usuario",
+      description: `Esta accion eliminara ${user.email} y no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      cancelLabel: "Cancelar",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    await mutate(`/api/admin/users/${user.id}`, { method: "DELETE" });
   }
 
   function selectSong(value: string) {
@@ -382,7 +406,15 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       ) : null}
 
       {activeTab === "users" ? (
-        <UserInvitePanel users={snapshot.users} onInvite={inviteUser} />
+        <UserInvitePanel
+          users={snapshot.users}
+          currentUserId={snapshot.currentUser?.id}
+          canCreateAdmin={snapshot.currentUser?.role === "ADMIN"}
+          canDeleteUsers={snapshot.currentUser?.role === "ADMIN"}
+          onInvite={inviteUser}
+          onResetPassword={resetUserPassword}
+          onDeleteUser={deleteUser}
+        />
       ) : null}
 
       {activeTab === "versions" ? (

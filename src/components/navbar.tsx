@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function Navbar() {
   const session = await getAuthSession();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const canOpenPanel = Boolean(session?.user?.role);
 
   return (
     <header className="border-b border-stone-200 bg-white/95 backdrop-blur">
@@ -20,7 +20,7 @@ export async function Navbar() {
 
         <nav className="flex shrink-0 items-center gap-2">
           <ThemeToggle />
-          {isAdmin ? (
+          {canOpenPanel ? (
             <>
               <Link
                 href="/admin"

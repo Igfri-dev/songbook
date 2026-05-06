@@ -32,6 +32,7 @@ export const loginSchema = z.object({
 
 export const inviteUserSchema = z.object({
   email: z.string().email().max(191).transform((value) => value.toLowerCase().trim()),
+  role: z.enum(["ADMIN", "USER"]).optional().default("USER"),
 });
 
 export const setPasswordSchema = z.object({

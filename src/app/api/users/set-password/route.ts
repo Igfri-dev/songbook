@@ -17,10 +17,11 @@ export async function POST(request: Request) {
     id: number;
     email: string;
     username: string;
+    role: "ADMIN" | "USER";
     expiresAt: Date;
     acceptedAt: Date | null;
   }>(
-    "SELECT id, email, username, expiresAt, acceptedAt FROM user_invitations WHERE tokenHash = ? LIMIT 1",
+    "SELECT id, email, username, role, expiresAt, acceptedAt FROM user_invitations WHERE tokenHash = ? LIMIT 1",
     [tokenHash],
   );
 
@@ -34,9 +35,9 @@ export async function POST(request: Request) {
   await transaction(async (tx) => {
     await tx.execute(
       `UPDATE users
-          SET name = ?, username = ?, passwordHash = ?, role = 'ADMIN'
+          SET name = ?, username = ?, passwordHash = ?, role = ?
         WHERE email = ?`,
-      [displayName, invitation.username, passwordHash, invitation.email],
+      [displayName, invitation.username, passwordHash, invitation.role, invitation.email],
     );
 
     await tx.execute(
