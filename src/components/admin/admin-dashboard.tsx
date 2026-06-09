@@ -265,12 +265,15 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
 
       {activeTab === "songs" ? (
         <section className="grid min-w-0 gap-5">
-          <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-stone-950">Canciones</h2>
-                <p className="mt-1 text-sm text-stone-600">Crea, edita, elimina y controla publicacion.</p>
+                <p className="mt-1 text-sm text-stone-600">
+                  {snapshot.songs.length} {snapshot.songs.length === 1 ? "cancion disponible" : "canciones disponibles"}
+                </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setCreateModalOpen(true)}
@@ -290,15 +293,21 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               onChange={selectSong}
             />
 
-            <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
+            <div
+              className="mt-4 hidden w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:flex"
+              aria-label="Canciones disponibles"
+            >
               {songDraft ? (
-                <div
+                <button
+                  type="button"
+                  onClick={() => setEditingSongId(null)}
                   className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900"
                 >
                   <span className="block font-semibold">{songDraft.title}</span>
                   <span className="text-xs text-emerald-700">Borrador sin guardar</span>
-                </div>
+                </button>
               ) : null}
+
               {snapshot.songs.map((song) => (
                 <button
                   key={song.id}
@@ -314,7 +323,9 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                   }`}
                 >
                   <span className="block font-semibold">{song.title}</span>
-                  <span className="text-xs text-stone-500">{song.isPublished ? "Publicada" : "Borrador"}</span>
+                  <span className="text-xs text-stone-500">
+                    {song.isPublished ? "Publicada" : "Borrador"}
+                  </span>
                 </button>
               ))}
             </div>
