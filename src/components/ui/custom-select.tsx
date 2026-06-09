@@ -97,7 +97,7 @@ export function CustomSelect({
   }
 
   return (
-    <div ref={rootRef} className={`relative grid gap-2 ${className}`}>
+    <div ref={rootRef} className={`relative grid min-w-0 gap-2 ${className}`}>
       {label ? (
         <label id={`${id}-label`} className="text-sm font-medium text-stone-800">
           {label}
@@ -123,7 +123,7 @@ export function CustomSelect({
             setOpen(true);
           }
         }}
-        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md border border-stone-300 bg-white px-3 text-left text-base text-stone-950 shadow-sm outline-none transition hover:border-stone-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
+        className="flex min-h-12 min-w-0 w-full items-center justify-between gap-3 rounded-md border border-stone-300 bg-white px-3 text-left text-base text-stone-950 shadow-sm outline-none transition hover:border-stone-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400"
       >
         <span className="min-w-0">
           <span className={`block truncate font-medium ${selectedOption ? "text-stone-950" : "text-stone-500"}`}>

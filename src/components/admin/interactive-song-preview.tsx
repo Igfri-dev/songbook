@@ -5,9 +5,18 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 import type { SongContentData } from "@/lib/song-content";
+import {
+  chordInputKeyShortcut,
+  formatChordInput,
+  inferContentChordNotation,
+  shouldAutocompleteChordInput,
+} from "@/lib/chord-input";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 const sectionLabels: Record<string, string> = {
@@ -78,6 +87,22 @@ export function InteractiveSongPreview({
   onSectionChordsCopy,
 }: InteractiveSongPreviewProps) {
   const [selection, setSelection] = useState<Selection | null>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const focusTarget =
+    selection?.type === "add" ? "add" : selection?.type === "chord" && selection.editing ? "edit" : null;
+  const fallbackNotation = useMemo(() => inferContentChordNotation(content), [content]);
+
+  useEffect(() => {
+    if (focusTarget === "add") {
+      addInputRef.current?.focus();
+      return;
+    }
+
+    if (focusTarget === "edit") {
+      editInputRef.current?.focus();
+    }
+  }, [focusTarget]);
 
   function beginDrag(
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -213,6 +238,45 @@ export function InteractiveSongPreview({
     setSelection(null);
   }
 
+  function notationForSelection(target: Selection) {
+    return (
+      inferContentChordNotation(content, target.sectionIndex, target.lineIndex) || fallbackNotation
+    );
+  }
+
+  function updateSelectionChord(value: string, shouldAutocomplete: boolean) {
+    if (!selection) {
+      return;
+    }
+
+    setSelection({
+      ...selection,
+      chord: formatChordInput(value, notationForSelection(selection), {
+        autocomplete: shouldAutocomplete,
+      }),
+    });
+  }
+
+  function shouldAutocompleteSelectionChange(nativeEvent: Event, value: string) {
+    return selection
+      ? shouldAutocompleteChordInput(nativeEvent, selection.chord, value)
+      : true;
+  }
+
+  function applyChordShortcut(key: string) {
+    if (!selection) {
+      return false;
+    }
+
+    const nextChord = chordInputKeyShortcut(selection.chord, key, notationForSelection(selection));
+    if (!nextChord) {
+      return false;
+    }
+
+    setSelection({ ...selection, chord: nextChord });
+    return true;
+  }
+
   function chordCopyOptions(targetSectionIndex: number): CustomSelectOption[] {
     const options: CustomSelectOption[] = [];
 
@@ -236,12 +300,12 @@ export function InteractiveSongPreview({
   }
 
   return (
-    <div className="grid gap-8">
+    <div className="grid min-w-0 gap-8">
       {content.sections.map((section, sectionIndex) => {
         const copyOptions = chordCopyOptions(sectionIndex);
 
         return (
-          <section key={`${section.type}-${sectionIndex}`} className="grid gap-3">
+          <section key={`${section.type}-${sectionIndex}`} className="grid min-w-0 gap-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <h2 className="truncate text-base font-semibold text-stone-900">
@@ -263,7 +327,7 @@ export function InteractiveSongPreview({
               ) : null}
             </div>
 
-            <div className="grid gap-1">
+            <div className="grid min-w-0 gap-1">
               {section.lines.map((line, lineIndex) => (
                 <div
                   key={`${sectionIndex}-${lineIndex}`}
@@ -276,7 +340,7 @@ export function InteractiveSongPreview({
                   >
                     {line.chords.map((chord, chordIndex) => (
                       <button
-                        key={`${chord.chord}-${chordIndex}`}
+                        key={`chord-${chordIndex}`}
                         type="button"
                         data-chord-token
                         className="chord-token chord-token-editable"
@@ -299,12 +363,22 @@ export function InteractiveSongPreview({
                         style={{ "--at": selection.at } as ChordStyle}
                       >
                         <input
-                          autoFocus
+                          ref={addInputRef}
                           value={selection.chord}
                           onChange={(event) =>
-                            setSelection({ ...selection, chord: event.target.value })
+                            updateSelectionChord(
+                              event.target.value,
+                              shouldAutocompleteSelectionChange(
+                                event.nativeEvent,
+                                event.target.value,
+                              ),
+                            )
                           }
                           onKeyDown={(event) => {
+                            if (applyChordShortcut(event.key)) {
+                              event.preventDefault();
+                              return;
+                            }
                             if (event.key === "Enter") {
                               addSelectedChord();
                             }
@@ -345,12 +419,22 @@ export function InteractiveSongPreview({
                         {selection.editing ? (
                           <>
                             <input
-                              autoFocus
+                              ref={editInputRef}
                               value={selection.chord}
                               onChange={(event) =>
-                                setSelection({ ...selection, chord: event.target.value })
+                                updateSelectionChord(
+                                  event.target.value,
+                                  shouldAutocompleteSelectionChange(
+                                    event.nativeEvent,
+                                    event.target.value,
+                                  ),
+                                )
                               }
                               onKeyDown={(event) => {
+                                if (applyChordShortcut(event.key)) {
+                                  event.preventDefault();
+                                  return;
+                                }
                                 if (event.key === "Enter") {
                                   saveSelectedChord();
                                 }

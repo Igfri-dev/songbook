@@ -10,7 +10,7 @@ export async function Navbar() {
 
   return (
     <header className="border-b border-stone-200 bg-white/95 backdrop-blur">
-      <div className="flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="flex h-16 w-full min-w-0 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="inline-flex min-w-0 items-center gap-2 text-lg font-semibold text-stone-950">
           <span className="grid size-9 place-items-center rounded-md bg-emerald-700 text-white">
             <Music2 aria-hidden="true" size={19} />
@@ -24,10 +24,12 @@ export async function Navbar() {
             <>
               <Link
                 href="/admin"
-                className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-stone-700"
+                aria-label="Abrir panel admin"
+                title="Panel admin"
+                className="inline-flex size-10 items-center justify-center gap-2 rounded-md bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700 sm:h-auto sm:w-auto sm:px-3 sm:py-2"
               >
                 <Settings aria-hidden="true" size={16} />
-                Admin
+                <span className="hidden sm:inline">Admin</span>
               </Link>
               <LogoutButton />
             </>

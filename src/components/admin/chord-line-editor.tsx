@@ -2,6 +2,12 @@
 
 import { ArrowLeft, ArrowRight, Plus, Trash2 } from "lucide-react";
 import type { CSSProperties } from "react";
+import {
+  chordInputKeyShortcut,
+  formatChordInput,
+  inferChordNotation,
+  shouldAutocompleteChordInput,
+} from "@/lib/chord-input";
 import type { SongLineData } from "@/lib/song-content";
 
 type ChordStyle = CSSProperties & {
@@ -27,6 +33,8 @@ export function ChordLineEditor({
   canMoveUp,
   canMoveDown,
 }: ChordLineEditorProps) {
+  const chordNotation = inferChordNotation(line.chords);
+
   function updateChord(index: number, patch: Partial<SongLineData["chords"][number]>) {
     onChange({
       ...line,
@@ -48,8 +56,8 @@ export function ChordLineEditor({
   }
 
   return (
-    <div className="grid gap-3 rounded-lg border border-stone-200 bg-white p-3">
-      <div className="grid gap-2">
+    <div className="grid min-w-0 gap-3 rounded-lg border border-stone-200 bg-white p-3">
+      <div className="grid min-w-0 gap-2">
         <div className="flex items-center justify-between gap-2">
           <label className="text-xs font-semibold uppercase tracking-wide text-stone-500">Letra</label>
           <div className="flex items-center gap-1">
@@ -84,7 +92,7 @@ export function ChordLineEditor({
         <input
           value={line.lyrics}
           onChange={(event) => onChange({ ...line, lyrics: event.target.value })}
-          className="h-10 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          className="h-10 min-w-0 rounded-md border border-stone-300 px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
           placeholder="Letra de la linea"
         />
       </div>
@@ -100,7 +108,7 @@ export function ChordLineEditor({
                 .sort((a, b) => a.at - b.at)
                 .map((chord, index) => (
                   <span
-                    key={`${chord.chord}-${chord.at}-${index}`}
+                    key={`chord-${index}`}
                     className="chord-token"
                     style={{ "--at": Math.max(0, chord.at) } as ChordStyle}
                   >
@@ -113,7 +121,7 @@ export function ChordLineEditor({
         </div>
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid min-w-0 gap-2">
         <div className="flex items-center justify-between gap-2">
           <label className="text-xs font-semibold uppercase tracking-wide text-stone-500">Acordes</label>
           <button
@@ -132,12 +140,32 @@ export function ChordLineEditor({
           <div className="grid gap-2">
             {line.chords.map((chord, index) => (
               <div
-                key={`${index}-${chord.chord}`}
+                key={`chord-${index}`}
                 className="grid min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_auto]"
               >
                 <input
                   value={chord.chord}
-                  onChange={(event) => updateChord(index, { chord: event.target.value })}
+                  onChange={(event) =>
+                    updateChord(index, {
+                      chord: formatChordInput(event.target.value, chordNotation, {
+                        autocomplete: shouldAutocompleteChordInput(
+                          event.nativeEvent,
+                          chord.chord,
+                          event.target.value,
+                        ),
+                      }),
+                    })
+                  }
+                  onKeyDown={(event) => {
+                    const nextChord = chordInputKeyShortcut(chord.chord, event.key, chordNotation);
+
+                    if (!nextChord) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    updateChord(index, { chord: nextChord });
+                  }}
                   className="h-9 min-w-0 rounded-md border border-stone-300 px-2 text-sm outline-none focus:border-emerald-600"
                   aria-label="Acorde"
                 />

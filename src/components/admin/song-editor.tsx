@@ -275,8 +275,8 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
   }
 
   return (
-    <div className="grid min-h-0 gap-4">
-      <section className="min-h-0 rounded-lg border border-stone-200 bg-white shadow-sm">
+    <div className="grid min-h-0 min-w-0 gap-4">
+      <section className="min-h-0 min-w-0 rounded-lg border border-stone-200 bg-white shadow-sm">
         <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Edicion</p>
@@ -285,14 +285,14 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
           {renderActionButtons()}
         </div>
 
-        <div className="grid gap-4 p-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)_minmax(15rem,auto)]">
-            <label className="grid gap-2 text-sm font-medium text-stone-800">
+        <div className="grid min-w-0 gap-4 p-4">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)_minmax(15rem,auto)]">
+            <label className="grid min-w-0 gap-2 text-sm font-medium text-stone-800">
               Titulo
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                className="h-11 min-w-0 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 placeholder="Nombre de la cancion"
               />
             </label>
@@ -342,8 +342,8 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
           </div>
 
           {advancedMode ? (
-            <div className="grid gap-4">
-              <div className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+            <div className="grid min-w-0 gap-4">
+              <div className="grid min-w-0 gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-stone-950">Pegar letra</h3>
                   <button
@@ -377,8 +377,11 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
               </div>
 
               {content.sections.map((section, sectionIndex) => (
-                <div key={`${sectionIndex}-${section.type}`} className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
-                  <div className="grid gap-2 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)_auto]">
+                <div
+                  key={`${sectionIndex}-${section.type}`}
+                  className="grid min-w-0 gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3"
+                >
+                  <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)_auto]">
                     <CustomSelect
                       value={section.type}
                       options={sectionTypeOptions}
@@ -397,7 +400,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
                           title: event.target.value,
                         })
                       }
-                      className="h-12 rounded-md border border-stone-300 bg-white px-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                      className="h-12 min-w-0 rounded-md border border-stone-300 bg-white px-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                       placeholder="Titulo de seccion"
                     />
                     <button
@@ -470,7 +473,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
         </div>
       </section>
 
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
         <div className="shrink-0 border-b border-stone-200 p-4">
           <p className="text-sm font-medium text-emerald-700">Vista previa</p>
           <h2 className="mt-1 text-2xl font-semibold text-stone-950">{title || "Cancion sin titulo"}</h2>

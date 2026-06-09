@@ -30,8 +30,8 @@ export function UserInvitePanel({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+    <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-950">Usuarios</h2>
         <p className="mt-1 text-sm text-stone-600">
           Los usuarios pueden iniciar sesion con su correo o con el usuario derivado antes del @.
@@ -110,7 +110,7 @@ export function UserInvitePanel({
         </div>
       </div>
 
-      <aside className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+      <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
         <h3 className="font-semibold text-stone-950">Crear usuario</h3>
         <form
           className="mt-3 grid gap-3"
@@ -129,25 +129,25 @@ export function UserInvitePanel({
             });
           }}
         >
-          <label className="grid gap-2 text-sm font-medium text-stone-800">
+          <label className="grid min-w-0 gap-2 text-sm font-medium text-stone-800">
             Correo
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
               required
-              className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="h-11 min-w-0 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               placeholder="usuario@dominio.com"
             />
           </label>
 
           {canCreateAdmin ? (
-            <label className="grid gap-2 text-sm font-medium text-stone-800">
+            <label className="grid min-w-0 gap-2 text-sm font-medium text-stone-800">
               Rol
               <select
                 value={role}
                 onChange={(event) => setRole(event.target.value as UserRole)}
-                className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                className="h-11 min-w-0 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               >
                 <option value="USER">Usuario</option>
                 <option value="ADMIN">Admin</option>
