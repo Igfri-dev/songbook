@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FolderTree, Music2, Plus, RefreshCw, UploadCloud, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FolderTree, Music2, Plus, RefreshCw, Search, UploadCloud, UserPlus, X } from "lucide-react";
 import type { AdminSnapshot } from "@/lib/catalog";
 import { CategoryTreeEditor } from "@/components/admin/category-tree-editor";
 import { SongCreateModal } from "@/components/admin/song-create-modal";
@@ -10,6 +10,7 @@ import { UserInvitePanel } from "@/components/admin/user-invite-panel";
 import { ActionModal } from "@/components/ui/action-modal";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 import type { UserRole } from "@/lib/roles";
+import { normalizeSongTitle } from "@/lib/song-title";
 
 type Tab = "songs" | "categories" | "users" | "versions";
 type ConfirmDialogState = {
@@ -45,11 +46,34 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [songDraft, setSongDraft] = useState<SongEditorDraft | null>(null);
   const [draftRevision, setDraftRevision] = useState(0);
+  const [songSearch, setSongSearch] = useState("");
+  const [songSearchOpen, setSongSearchOpen] = useState(false);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<number>>(
+    () => new Set(initialSnapshot.categories.map((category) => category.id)),
+  );
+  const songSearchRef = useRef<HTMLDivElement>(null);
 
   const editingSong = useMemo(
     () => snapshot.songs.find((song) => song.id === editingSongId) ?? null,
     [snapshot.songs, editingSongId],
   );
+  const matchingSongs = useMemo(() => {
+    const query = normalizeSongTitle(songSearch);
+
+    if (!query) {
+      return [];
+    }
+
+    return snapshot.songs
+      .filter((song) => normalizeSongTitle(song.title).includes(query))
+      .sort((a, b) => {
+        const aTitle = normalizeSongTitle(a.title);
+        const bTitle = normalizeSongTitle(b.title);
+        const startsDifference = Number(bTitle.startsWith(query)) - Number(aTitle.startsWith(query));
+
+        return startsDifference || a.title.localeCompare(b.title, "es");
+      });
+  }, [snapshot.songs, songSearch]);
   const tabOptions = useMemo<CustomSelectOption[]>(
     () =>
       tabs.map((tab) => ({
@@ -77,6 +101,28 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     ],
     [snapshot.songs, songDraft],
   );
+
+  useEffect(() => {
+    function closeSongSearch(event: PointerEvent) {
+      if (songSearchRef.current && !songSearchRef.current.contains(event.target as Node)) {
+        setSongSearchOpen(false);
+      }
+    }
+
+    function closeSongSearchFromKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSongSearchOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", closeSongSearch);
+    window.addEventListener("keydown", closeSongSearchFromKeyboard);
+
+    return () => {
+      window.removeEventListener("pointerdown", closeSongSearch);
+      window.removeEventListener("keydown", closeSongSearchFromKeyboard);
+    };
+  }, []);
 
   async function mutate(url: string, init?: RequestInit) {
     setNoticeDialog(null);
@@ -109,6 +155,19 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     }
 
     const next = (await response.json()) as AdminSnapshot;
+    setExpandedCategoryIds((current) => {
+      const previousIds = new Set(snapshot.categories.map((category) => category.id));
+      const nextIds = new Set(next.categories.map((category) => category.id));
+      const preserved = new Set([...current].filter((id) => nextIds.has(id)));
+
+      next.categories.forEach((category) => {
+        if (!previousIds.has(category.id)) {
+          preserved.add(category.id);
+        }
+      });
+
+      return preserved;
+    });
     setSnapshot({ ...next, currentUser: next.currentUser ?? snapshot.currentUser });
     setRevision((current) => current + 1);
     return next;
@@ -265,7 +324,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
 
       {activeTab === "songs" ? (
         <section className="grid min-w-0 gap-5">
-          <div className="min-w-0 overflow-hidden rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-stone-950">Canciones</h2>
@@ -284,6 +343,85 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               </button>
             </div>
 
+            <div ref={songSearchRef} className="relative z-30 mt-4 max-w-xl">
+              <label htmlFor="admin-song-search" className="mb-2 block text-sm font-medium text-stone-800">
+                Buscar cancion
+              </label>
+              <div className="relative">
+                <Search
+                  aria-hidden="true"
+                  size={18}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+                />
+                <input
+                  id="admin-song-search"
+                  type="text"
+                  value={songSearch}
+                  onChange={(event) => {
+                    setSongSearch(event.target.value);
+                    setSongSearchOpen(Boolean(event.target.value.trim()));
+                  }}
+                  onFocus={() => setSongSearchOpen(Boolean(songSearch.trim()))}
+                  role="combobox"
+                  aria-expanded={songSearchOpen && Boolean(songSearch.trim())}
+                  aria-controls="admin-song-search-results"
+                  aria-autocomplete="list"
+                  autoComplete="off"
+                  className="h-11 w-full rounded-md border border-stone-300 bg-white pl-10 pr-10 text-stone-950 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  placeholder="Escribe el titulo de una cancion"
+                />
+                {songSearch ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSongSearch("");
+                      setSongSearchOpen(false);
+                    }}
+                    className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-md text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+                    aria-label="Limpiar busqueda"
+                  >
+                    <X aria-hidden="true" size={17} />
+                  </button>
+                ) : null}
+              </div>
+
+              {songSearchOpen && songSearch.trim() ? (
+                <div
+                  id="admin-song-search-results"
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-y-auto rounded-lg border border-stone-200 bg-white p-1 shadow-xl"
+                >
+                  {matchingSongs.length > 0 ? (
+                    matchingSongs.map((song) => (
+                      <button
+                        key={song.id}
+                        type="button"
+                        role="option"
+                        aria-selected={!songDraft && editingSongId === song.id}
+                        onClick={() => {
+                          setSongDraft(null);
+                          setEditingSongId(song.id);
+                          setSongSearch(song.title);
+                          setSongSearchOpen(false);
+                        }}
+                        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition hover:bg-stone-50"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-stone-900">{song.title}</span>
+                          <span className="block text-xs text-stone-500">
+                            {song.isPublished ? "Publicada" : "Borrador"}
+                          </span>
+                        </span>
+                        <Music2 aria-hidden="true" size={17} className="shrink-0 text-emerald-700" />
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-4 text-sm text-stone-500">No hay canciones que coincidan.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
             <CustomSelect
               className="mt-4 sm:hidden"
               label="Seleccionar cancion"
@@ -293,41 +431,43 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               onChange={selectSong}
             />
 
-            <div
-              className="mt-4 hidden w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:flex"
-              aria-label="Canciones disponibles"
-            >
-              {songDraft ? (
-                <button
-                  type="button"
-                  onClick={() => setEditingSongId(null)}
-                  className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900"
-                >
-                  <span className="block font-semibold">{songDraft.title}</span>
-                  <span className="text-xs text-emerald-700">Borrador sin guardar</span>
-                </button>
-              ) : null}
+            <div className="min-w-0 overflow-hidden">
+              <div
+                className="mt-4 hidden w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:flex"
+                aria-label="Canciones disponibles"
+              >
+                {songDraft ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingSongId(null)}
+                    className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900"
+                  >
+                    <span className="block font-semibold">{songDraft.title}</span>
+                    <span className="text-xs text-emerald-700">Borrador sin guardar</span>
+                  </button>
+                ) : null}
 
-              {snapshot.songs.map((song) => (
-                <button
-                  key={song.id}
-                  type="button"
-                  onClick={() => {
-                    setSongDraft(null);
-                    setEditingSongId(song.id);
-                  }}
-                  className={`shrink-0 rounded-md border px-3 py-2 text-left text-sm transition ${
-                    !songDraft && editingSongId === song.id
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                      : "border-stone-200 text-stone-700 hover:bg-stone-50"
-                  }`}
-                >
-                  <span className="block font-semibold">{song.title}</span>
-                  <span className="text-xs text-stone-500">
-                    {song.isPublished ? "Publicada" : "Borrador"}
-                  </span>
-                </button>
-              ))}
+                {snapshot.songs.map((song) => (
+                  <button
+                    key={song.id}
+                    type="button"
+                    onClick={() => {
+                      setSongDraft(null);
+                      setEditingSongId(song.id);
+                    }}
+                    className={`shrink-0 rounded-md border px-3 py-2 text-left text-sm transition ${
+                      !songDraft && editingSongId === song.id
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                        : "border-stone-200 text-stone-700 hover:bg-stone-50"
+                    }`}
+                  >
+                    <span className="block font-semibold">{song.title}</span>
+                    <span className="text-xs text-stone-500">
+                      {song.isPublished ? "Publicada" : "Borrador"}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -355,7 +495,13 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       {createModalOpen ? (
         <SongCreateModal
           categories={snapshot.categories}
+          songs={snapshot.songs}
           onClose={() => setCreateModalOpen(false)}
+          onSelectExisting={(songId) => {
+            setSongDraft(null);
+            setEditingSongId(songId);
+            setCreateModalOpen(false);
+          }}
           onCreateDraft={(draft) => {
             setSongDraft(draft);
             setEditingSongId(null);
@@ -370,32 +516,13 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
           key={`categories-${revision}`}
           snapshot={snapshot}
           title="Categorias y catalogo"
+          expandedCategoryIds={expandedCategoryIds}
+          onExpandedCategoryIdsChange={setExpandedCategoryIds}
           onCreateCategory={async (name, parentId) => {
             await mutate("/api/admin/categories", {
               method: "POST",
               body: JSON.stringify({ name, parentId }),
             });
-          }}
-          onUpdateCategory={async (id, name, parentId) => {
-            await mutate(`/api/admin/categories/${id}`, {
-              method: "PUT",
-              body: JSON.stringify({ name, parentId }),
-            });
-          }}
-          onDeleteCategory={async (id) => {
-            const category = snapshot.categories.find((item) => item.id === id);
-            const confirmed = await requestConfirmation({
-              title: "Eliminar carpeta",
-              description: `Esta accion eliminara ${
-                category?.name ? `"${category.name}"` : "esta carpeta"
-              }. Las canciones no se eliminan.`,
-              confirmLabel: "Eliminar",
-              cancelLabel: "Cancelar",
-            });
-
-            if (confirmed) {
-              await mutate(`/api/admin/categories/${id}`, { method: "DELETE" });
-            }
           }}
           onAssignSong={async (songId, categoryId, categorySongId) => {
             await mutate("/api/admin/catalog/assign", {
@@ -466,7 +593,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
             </div>
           </div>
 
-          <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:self-start">
+          <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:self-start">
             <h3 className="font-semibold text-stone-950">Historial</h3>
             <div className="mt-3 grid gap-2">
               {snapshot.versions.map((version) => (

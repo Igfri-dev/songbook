@@ -110,7 +110,7 @@ export function UserInvitePanel({
         </div>
       </div>
 
-      <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:self-start">
+      <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:self-start">
         <h3 className="font-semibold text-stone-950">Crear usuario</h3>
         <form
           className="mt-3 grid gap-3"

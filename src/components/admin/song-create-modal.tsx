@@ -2,18 +2,27 @@
 
 import { type FormEvent, useMemo, useState } from "react";
 import { ClipboardPaste, Plus, X } from "lucide-react";
-import type { AdminCategory } from "@/lib/catalog";
+import type { AdminCategory, AdminSong } from "@/lib/catalog";
 import { contentFromPlainLyrics } from "@/lib/plain-lyrics";
 import type { SongEditorDraft } from "@/components/admin/song-editor";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+import { normalizeSongTitle } from "@/lib/song-title";
 
 type SongCreateModalProps = {
   categories: AdminCategory[];
+  songs: AdminSong[];
   onClose: () => void;
+  onSelectExisting: (songId: number) => void;
   onCreateDraft: (draft: SongEditorDraft) => void;
 };
 
-export function SongCreateModal({ categories, onClose, onCreateDraft }: SongCreateModalProps) {
+export function SongCreateModal({
+  categories,
+  songs,
+  onClose,
+  onSelectExisting,
+  onCreateDraft,
+}: SongCreateModalProps) {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [hasChords, setHasChords] = useState(true);
@@ -34,11 +43,20 @@ export function SongCreateModal({ categories, onClose, onCreateDraft }: SongCrea
     ],
     [sortedCategories],
   );
+  const duplicateSong = useMemo(() => {
+    const normalizedTitle = normalizeSongTitle(title);
+
+    if (!normalizedTitle) {
+      return null;
+    }
+
+    return songs.find((song) => normalizeSongTitle(song.title) === normalizedTitle) ?? null;
+  }, [songs, title]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!title.trim()) {
+    if (!title.trim() || duplicateSong) {
       return;
     }
 
@@ -78,16 +96,46 @@ export function SongCreateModal({ categories, onClose, onCreateDraft }: SongCrea
         </div>
 
         <div className="grid min-h-0 gap-4 overflow-y-auto p-4">
-          <label className="grid gap-2 text-sm font-medium text-stone-800">
-            Titulo
+          <div className="grid gap-2">
+            <label htmlFor="new-song-title" className="text-sm font-medium text-stone-800">
+              Titulo
+            </label>
             <input
+              id="new-song-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="h-11 rounded-md border border-stone-300 px-3 text-stone-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              aria-invalid={Boolean(duplicateSong)}
+              aria-describedby={duplicateSong ? "new-song-title-duplicate" : undefined}
+              className={`h-11 rounded-md border px-3 text-stone-950 outline-none focus:ring-2 ${
+                duplicateSong
+                  ? "border-rose-400 focus:border-rose-500 focus:ring-rose-100"
+                  : "border-stone-300 focus:border-emerald-600 focus:ring-emerald-100"
+              }`}
               placeholder="Nombre de la cancion"
               autoFocus
             />
-          </label>
+            {duplicateSong ? (
+              <div
+                id="new-song-title-duplicate"
+                role="alert"
+                className="flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">Esta cancion ya existe.</p>
+                  <p className="mt-1 break-words text-amber-800">
+                    Coincide con &quot;{duplicateSong.title}&quot;.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onSelectExisting(duplicateSong.id)}
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-amber-300 bg-white px-3 font-semibold text-amber-800 hover:bg-stone-50"
+                >
+                  Abrir existente
+                </button>
+              </div>
+            ) : null}
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
             <CustomSelect
@@ -141,7 +189,7 @@ export function SongCreateModal({ categories, onClose, onCreateDraft }: SongCrea
           </button>
           <button
             type="submit"
-            disabled={!title.trim()}
+            disabled={!title.trim() || Boolean(duplicateSong)}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-400"
           >
             {lyrics.trim() ? <ClipboardPaste aria-hidden="true" size={17} /> : <Plus aria-hidden="true" size={17} />}
