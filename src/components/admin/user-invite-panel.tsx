@@ -30,7 +30,7 @@ export function UserInvitePanel({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
       <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-950">Usuarios</h2>
         <p className="mt-1 text-sm text-stone-600">
@@ -110,7 +110,7 @@ export function UserInvitePanel({
         </div>
       </div>
 
-      <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+      <aside className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm lg:self-start">
         <h3 className="font-semibold text-stone-950">Crear usuario</h3>
         <form
           className="mt-3 grid gap-3"

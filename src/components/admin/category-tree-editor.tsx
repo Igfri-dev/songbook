@@ -253,7 +253,7 @@ export function CategoryTreeEditor({
   }
 
   return (
-    <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
       <div className="min-w-0 rounded-lg border border-stone-200 bg-white shadow-sm">
         <div className="grid gap-3 border-b border-stone-200 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
@@ -296,7 +296,7 @@ export function CategoryTreeEditor({
         </div>
       </div>
 
-      <aside className="grid min-w-0 gap-4">
+      <aside className="grid min-w-0 content-start gap-4 lg:self-start">
         <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="font-semibold text-stone-950">Crear carpeta</h3>
           <div className="mt-3 grid gap-2">
