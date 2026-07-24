@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ClipboardPaste, Plus, Save, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { AdminCategory, AdminSong } from "@/lib/catalog";
 import {
@@ -13,6 +13,9 @@ import {
 import { contentFromPlainLyrics } from "@/lib/plain-lyrics";
 import { InteractiveSongPreview } from "@/components/admin/interactive-song-preview";
 import { ChordLineEditor } from "@/components/admin/chord-line-editor";
+import { SectionAddModal } from "@/components/admin/section-add-modal";
+import { SectionCopyModal } from "@/components/admin/section-copy-modal";
+import type { SectionCopyMode } from "@/components/admin/section-copy-menu";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
 
 export type SongEditorPayload = {
@@ -44,9 +47,15 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
   const [content, setContent] = useState<SongContentData>(() =>
     cloneContent(song?.content ?? initialDraft?.content ?? emptySongContent),
   );
+  const previewScrollRef = useRef<HTMLDivElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [lyricsDraft, setLyricsDraft] = useState("");
+  const [addSectionsOpen, setAddSectionsOpen] = useState(false);
+  const [copyRequest, setCopyRequest] = useState<{
+    mode: SectionCopyMode;
+    targetSectionIndex: number;
+  } | null>(null);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
@@ -98,7 +107,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
         ...current.sections,
         {
           type: "verse",
-          title: `Verso ${current.sections.length + 1}`,
+          title: nextVerseTitle(current),
           lines: [{ lyrics: "", chords: [] }],
         },
       ],
@@ -120,6 +129,42 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
   function applyPastedLyrics() {
     const nextContent = contentFromPlainLyrics(lyricsDraft);
     setContent(nextContent);
+  }
+
+  function insertFormattedSections(nextContent: SongContentData, requestedIndex: number) {
+    setContent((current) => {
+      const insertAt = clamp(requestedIndex, 0, current.sections.length);
+      const insertedSections = nextContent.sections.map((section) => ({
+        ...section,
+        lines: section.lines.map(cloneLine),
+      }));
+      const sections = [
+        ...current.sections.slice(0, insertAt),
+        ...insertedSections,
+        ...current.sections.slice(insertAt),
+      ];
+
+      return {
+        sections: renumberAutomaticSections(sections),
+      };
+    });
+    requestAnimationFrame(() => {
+      const preview = previewScrollRef.current;
+      const insertedSection = preview?.querySelector<HTMLElement>(
+        `[data-song-section-index="${requestedIndex}"]`,
+      );
+
+      if (!preview || !insertedSection) {
+        return;
+      }
+
+      const previewRect = preview.getBoundingClientRect();
+      const sectionRect = insertedSection.getBoundingClientRect();
+      preview.scrollTo({
+        top: preview.scrollTop + sectionRect.top - previewRect.top - 16,
+        behavior: "smooth",
+      });
+    });
   }
 
   function movePreviewChord(sectionIndex: number, lineIndex: number, chordIndex: number, at: number, maxAt: number) {
@@ -219,7 +264,11 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
     }));
   }
 
-  function copySectionChords(sourceSectionIndex: number, targetSectionIndex: number) {
+  function copySection(
+    sourceSectionIndex: number,
+    targetSectionIndex: number,
+    mode: SectionCopyMode,
+  ) {
     setContent((current) => {
       const sourceSection = current.sections[sourceSectionIndex];
       const targetSection = current.sections[targetSectionIndex];
@@ -232,6 +281,23 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
         sections: current.sections.map((section, sectionIndex) => {
           if (sectionIndex !== targetSectionIndex) {
             return section;
+          }
+
+          if (mode === "lyrics-and-chords") {
+            return {
+              ...section,
+              lines: sourceSection.lines.map(cloneLine),
+            };
+          }
+
+          if (mode === "lyrics") {
+            return {
+              ...section,
+              lines: sourceSection.lines.map((sourceLine, lineIndex) => ({
+                lyrics: sourceLine.lyrics,
+                chords: targetSection.lines[lineIndex]?.chords.map((chord) => ({ ...chord })) ?? [],
+              })),
+            };
           }
 
           return {
@@ -247,6 +313,10 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
       };
     });
   }
+
+  const hasSongContent = content.sections.some((section) =>
+    section.lines.some((line) => line.lyrics.trim() || line.chords.length > 0),
+  );
 
   function renderActionButtons() {
     return (
@@ -474,23 +544,95 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
       </section>
 
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-        <div className="shrink-0 border-b border-stone-200 p-4">
-          <p className="text-sm font-medium text-emerald-700">Vista previa</p>
-          <h2 className="mt-1 text-2xl font-semibold text-stone-950">{title || "Cancion sin titulo"}</h2>
+        <div className="flex shrink-0 flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-emerald-700">Vista previa</p>
+            <h2 className="mt-1 truncate text-2xl font-semibold text-stone-950">
+              {title || "Cancion sin titulo"}
+            </h2>
+          </div>
+          {hasSongContent ? (
+            <button
+              type="button"
+              onClick={() => setAddSectionsOpen(true)}
+              className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-100 sm:w-auto"
+            >
+              <Plus aria-hidden="true" size={18} />
+              Estrofas
+            </button>
+          ) : null}
         </div>
-        <div className="min-h-[22rem] max-h-[70dvh] overflow-y-auto overscroll-contain p-4 lg:max-h-none lg:min-h-0 lg:flex-1">
+        <div
+          ref={previewScrollRef}
+          className="min-h-[22rem] max-h-[70dvh] overflow-y-auto overscroll-contain p-4 lg:max-h-none lg:min-h-0 lg:flex-1"
+        >
           <InteractiveSongPreview
             content={content}
             onChordMove={movePreviewChord}
             onChordAdd={addPreviewChord}
             onChordDelete={deletePreviewChord}
             onChordEdit={editPreviewChord}
-            onSectionChordsCopy={copySectionChords}
+            onSectionCopyRequest={(mode, targetSectionIndex) =>
+              setCopyRequest({ mode, targetSectionIndex })
+            }
           />
         </div>
       </section>
+
+      {addSectionsOpen ? (
+        <SectionAddModal
+          existingContent={content}
+          onClose={() => setAddSectionsOpen(false)}
+          onConfirm={(nextContent, insertAt) => {
+            insertFormattedSections(nextContent, insertAt);
+            setAddSectionsOpen(false);
+          }}
+        />
+      ) : null}
+
+      {copyRequest ? (
+        <SectionCopyModal
+          key={`${copyRequest.mode}-${copyRequest.targetSectionIndex}`}
+          content={content}
+          mode={copyRequest.mode}
+          targetSectionIndex={copyRequest.targetSectionIndex}
+          onClose={() => setCopyRequest(null)}
+          onConfirm={(sourceSectionIndex) => {
+            copySection(sourceSectionIndex, copyRequest.targetSectionIndex, copyRequest.mode);
+            setCopyRequest(null);
+          }}
+        />
+      ) : null}
     </div>
   );
+}
+
+function nextVerseTitle(content: SongContentData) {
+  const verseCount = content.sections.filter((section) => section.type === "verse").length;
+  return `Verso ${verseCount + 1}`;
+}
+
+function cloneLine(line: SongLineData): SongLineData {
+  return {
+    lyrics: line.lyrics,
+    chords: line.chords.map((chord) => ({ ...chord })),
+  };
+}
+
+function renumberAutomaticSections(sections: SongContentData["sections"]) {
+  let sectionNumber = 0;
+
+  return sections.map((section) => {
+    if (!/^Estrofa \d+$/i.test(section.title)) {
+      return section;
+    }
+
+    sectionNumber += 1;
+    return {
+      ...section,
+      title: `Estrofa ${sectionNumber}`,
+    };
+  });
 }
 
 function withOrderedContent(content: SongContentData): SongContentData {

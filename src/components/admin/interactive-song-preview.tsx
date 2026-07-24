@@ -17,7 +17,10 @@ import {
   inferContentChordNotation,
   shouldAutocompleteChordInput,
 } from "@/lib/chord-input";
-import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+import {
+  SectionCopyMenu,
+  type SectionCopyMode,
+} from "@/components/admin/section-copy-menu";
 
 const sectionLabels: Record<string, string> = {
   intro: "Intro",
@@ -73,7 +76,7 @@ type InteractiveSongPreviewProps = {
     chordIndex: number,
     chord: string,
   ) => void;
-  onSectionChordsCopy: (sourceSectionIndex: number, targetSectionIndex: number) => void;
+  onSectionCopyRequest: (mode: SectionCopyMode, targetSectionIndex: number) => void;
 };
 
 let measureCanvas: HTMLCanvasElement | null = null;
@@ -84,7 +87,7 @@ export function InteractiveSongPreview({
   onChordAdd,
   onChordDelete,
   onChordEdit,
-  onSectionChordsCopy,
+  onSectionCopyRequest,
 }: InteractiveSongPreviewProps) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
@@ -277,35 +280,21 @@ export function InteractiveSongPreview({
     return true;
   }
 
-  function chordCopyOptions(targetSectionIndex: number): CustomSelectOption[] {
-    const options: CustomSelectOption[] = [];
-
-    content.sections.forEach((section, sectionIndex) => {
-      const chordCount = section.lines.reduce((total, line) => total + line.chords.length, 0);
-
-      if (sectionIndex === targetSectionIndex || chordCount === 0) {
-        return;
-      }
-
-      const chordLineCount = section.lines.filter((line) => line.chords.length > 0).length;
-
-      options.push({
-        value: String(sectionIndex),
-        label: sectionTitle(section, sectionIndex),
-        description: `${chordLineCount} ${chordLineCount === 1 ? "linea" : "lineas"} con ${chordCount} acordes`,
-      });
-    });
-
-    return options;
-  }
-
   return (
     <div className="grid min-w-0 gap-8">
       {content.sections.map((section, sectionIndex) => {
-        const copyOptions = chordCopyOptions(sectionIndex);
+        const canCopyChords = content.sections
+          .slice(0, sectionIndex)
+          .some((previousSection) =>
+            previousSection.lines.some((line) => line.chords.length > 0),
+          );
 
         return (
-          <section key={`${section.type}-${sectionIndex}`} className="grid min-w-0 gap-3">
+          <section
+            key={`${section.type}-${sectionIndex}`}
+            data-song-section-index={sectionIndex}
+            className="grid min-w-0 gap-3"
+          >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <h2 className="truncate text-base font-semibold text-stone-900">
@@ -313,14 +302,11 @@ export function InteractiveSongPreview({
                 </h2>
                 <span className="h-px flex-1 bg-stone-200" />
               </div>
-              {copyOptions.length > 0 ? (
-                <CustomSelect
-                  value=""
-                  options={copyOptions}
-                  placeholder="Copiar acordes de"
-                  className="sm:w-60"
-                  onChange={(value) => {
-                    onSectionChordsCopy(Number(value), sectionIndex);
+              {sectionIndex > 0 ? (
+                <SectionCopyMenu
+                  canCopyChords={canCopyChords}
+                  onChoose={(mode) => {
+                    onSectionCopyRequest(mode, sectionIndex);
                     setSelection(null);
                   }}
                 />
@@ -489,6 +475,7 @@ export function InteractiveSongPreview({
           </section>
         );
       })}
+
     </div>
   );
 }
