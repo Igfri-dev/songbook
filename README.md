@@ -61,6 +61,12 @@ mysql -h 127.0.0.1 -P 3307 -u root < database.sql
 - Usuario: `admin`
 - Password: `Admin123!`
 
+Si actualizas una instalacion existente, aplica las migraciones en orden. Para agregar el estado de canciones completas:
+
+```bash
+mysql -h 127.0.0.1 -P 3307 -u root < migrations/001_add_song_completion.sql
+```
+
 ## Usuarios e invitaciones
 
 En `/admin`, la seccion `Usuarios` permite crear cuentas ingresando solo el correo. El sistema deriva el usuario desde el correo antes del dominio, por ejemplo `test@dominio.com` genera el usuario `test`.

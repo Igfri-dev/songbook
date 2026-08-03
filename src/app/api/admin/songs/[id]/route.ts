@@ -3,7 +3,7 @@ import { requirePanelSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
 import { db, transaction } from "@/lib/db";
 import { makeUniqueSlug } from "@/lib/slug";
-import { songPayloadSchema } from "@/lib/song-content";
+import { songCompletionSchema, songPayloadSchema } from "@/lib/song-content";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +57,35 @@ export async function PUT(
       [id, JSON.stringify(parsed.data.content)],
     );
   });
+
+  return Response.json(await getAdminSnapshot());
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requirePanelSession();
+  } catch {
+    return unauthorizedResponse();
+  }
+
+  const id = idSchema.parse((await params).id);
+  const parsed = songCompletionSchema.safeParse(await request.json().catch(() => null));
+
+  if (!parsed.success) {
+    return Response.json({ error: "Estado de cancion invalido" }, { status: 400 });
+  }
+
+  const result = await db.execute(
+    "UPDATE songs SET isComplete = ? WHERE id = ?",
+    [parsed.data.isComplete, id],
+  );
+
+  if (result.affectedRows === 0) {
+    return Response.json({ error: "Cancion no encontrada" }, { status: 404 });
+  }
 
   return Response.json(await getAdminSnapshot());
 }

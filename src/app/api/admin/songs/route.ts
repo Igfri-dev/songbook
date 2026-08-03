@@ -2,7 +2,7 @@ import { requirePanelSession, unauthorizedResponse } from "@/lib/admin";
 import { getAdminSnapshot } from "@/lib/catalog";
 import { insertedId, db, transaction } from "@/lib/db";
 import { makeUniqueSlug } from "@/lib/slug";
-import { songPayloadSchema } from "@/lib/song-content";
+import { deleteSongsSchema, songPayloadSchema } from "@/lib/song-content";
 import { normalizeSongTitle } from "@/lib/song-title";
 
 export const dynamic = "force-dynamic";
@@ -74,4 +74,25 @@ export async function POST(request: Request) {
   });
 
   return Response.json(await getAdminSnapshot(), { status: 201 });
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await requirePanelSession();
+  } catch {
+    return unauthorizedResponse();
+  }
+
+  const parsed = deleteSongsSchema.safeParse(await request.json().catch(() => null));
+
+  if (!parsed.success) {
+    return Response.json({ error: "Seleccion de canciones invalida" }, { status: 400 });
+  }
+
+  const songIds = [...new Set(parsed.data.ids)];
+  const placeholders = songIds.map(() => "?").join(", ");
+
+  await db.execute(`DELETE FROM songs WHERE id IN (${placeholders})`, songIds);
+
+  return Response.json(await getAdminSnapshot());
 }

@@ -49,6 +49,14 @@ export const songPayloadSchema = z.object({
   categoryId: z.coerce.number().int().positive().nullable().optional(),
 });
 
+export const songCompletionSchema = z.object({
+  isComplete: z.boolean(),
+});
+
+export const deleteSongsSchema = z.object({
+  ids: z.array(z.coerce.number().int().positive()).min(1).max(500),
+});
+
 export const categoryPayloadSchema = z.object({
   name: z.string().min(1).max(140).transform(cleanText),
   parentId: z.coerce.number().int().positive().nullable().optional(),

@@ -37,6 +37,7 @@ type SongRow = {
   slug: string;
   hasChords: number | boolean;
   isPublished: number | boolean;
+  isComplete: number | boolean;
   contentVersion: DateValue;
   createdAt: DateValue;
   updatedAt: DateValue;
@@ -108,6 +109,7 @@ export type AdminSong = {
   slug: string;
   hasChords: boolean;
   isPublished: boolean;
+  isComplete: boolean;
   contentVersion: string;
   createdAt: string;
   updatedAt: string;
@@ -327,7 +329,7 @@ export async function getAdminSnapshot(): Promise<AdminSnapshot> {
       "SELECT id, name, slug, parentId, sortOrder, createdAt, updatedAt FROM song_categories ORDER BY parentId ASC, sortOrder ASC, name ASC",
     ),
     db.query<SongRow>(
-      `SELECT s.id, s.title, s.slug, s.hasChords, s.isPublished, s.contentVersion,
+      `SELECT s.id, s.title, s.slug, s.hasChords, s.isPublished, s.isComplete, s.contentVersion,
               s.createdAt, s.updatedAt, sc.contentJson
          FROM songs s
          LEFT JOIN song_contents sc ON sc.songId = s.id
@@ -367,6 +369,7 @@ export async function getAdminSnapshot(): Promise<AdminSnapshot> {
       slug: song.slug,
       hasChords: Boolean(song.hasChords),
       isPublished: Boolean(song.isPublished),
+      isComplete: Boolean(song.isComplete),
       contentVersion: iso(song.contentVersion),
       createdAt: iso(song.createdAt),
       updatedAt: iso(song.updatedAt),

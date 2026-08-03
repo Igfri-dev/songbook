@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FolderTree, Music2, Plus, RefreshCw, Search, UploadCloud, UserPlus, X } from "lucide-react";
+import {
+  CheckCircle2,
+  CheckSquare2,
+  Circle,
+  FolderTree,
+  Music2,
+  Plus,
+  RefreshCw,
+  Search,
+  Square,
+  Trash2,
+  UploadCloud,
+  UserPlus,
+  X,
+} from "lucide-react";
 import type { AdminSnapshot } from "@/lib/catalog";
 import { CategoryTreeEditor } from "@/components/admin/category-tree-editor";
 import { SongCreateModal } from "@/components/admin/song-create-modal";
@@ -48,6 +62,9 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   const [draftRevision, setDraftRevision] = useState(0);
   const [songSearch, setSongSearch] = useState("");
   const [songSearchOpen, setSongSearchOpen] = useState(false);
+  const [selectedSongIds, setSelectedSongIds] = useState<Set<number>>(() => new Set());
+  const [updatingSongIds, setUpdatingSongIds] = useState<Set<number>>(() => new Set());
+  const [deletingSongs, setDeletingSongs] = useState(false);
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<number>>(
     () => new Set(initialSnapshot.categories.map((category) => category.id)),
   );
@@ -74,6 +91,11 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
         return startsDifference || a.title.localeCompare(b.title, "es");
       });
   }, [snapshot.songs, songSearch]);
+  const selectedSongs = useMemo(
+    () => snapshot.songs.filter((song) => selectedSongIds.has(song.id)),
+    [selectedSongIds, snapshot.songs],
+  );
+  const allSongsSelected = snapshot.songs.length > 0 && selectedSongs.length === snapshot.songs.length;
   const tabOptions = useMemo<CustomSelectOption[]>(
     () =>
       tabs.map((tab) => ({
@@ -96,7 +118,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       ...snapshot.songs.map((song) => ({
         value: String(song.id),
         label: song.title,
-        description: song.isPublished ? "Publicada" : "Borrador",
+        description: `${song.isPublished ? "Publicada" : "Borrador"}${song.isComplete ? " - Lista" : ""}`,
       })),
     ],
     [snapshot.songs, songDraft],
@@ -211,7 +233,90 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     }
 
     const next = await mutate(`/api/admin/songs/${songId}`, { method: "DELETE" });
-    setEditingSongId(next?.songs[0]?.id ?? null);
+
+    if (next) {
+      setSelectedSongIds((current) => {
+        const selected = new Set(current);
+        selected.delete(songId);
+        return selected;
+      });
+      setEditingSongId((current) =>
+        current && next.songs.some((item) => item.id === current) ? current : next.songs[0]?.id ?? null,
+      );
+    }
+  }
+
+  function toggleSongSelection(songId: number) {
+    setSelectedSongIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(songId)) {
+        next.delete(songId);
+      } else {
+        next.add(songId);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleAllSongs() {
+    setSelectedSongIds(allSongsSelected ? new Set() : new Set(snapshot.songs.map((song) => song.id)));
+  }
+
+  async function deleteSelectedSongs() {
+    if (selectedSongs.length === 0) {
+      return;
+    }
+
+    const confirmed = await requestConfirmation({
+      title: selectedSongs.length === 1 ? "Eliminar cancion" : "Eliminar canciones",
+      description:
+        selectedSongs.length === 1
+          ? `Esta accion eliminara "${selectedSongs[0].title}" y no se puede deshacer.`
+          : `Esta accion eliminara las ${selectedSongs.length} canciones seleccionadas y no se puede deshacer.`,
+      confirmLabel: selectedSongs.length === 1 ? "Eliminar cancion" : `Eliminar ${selectedSongs.length} canciones`,
+      cancelLabel: "Cancelar",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingSongs(true);
+
+    try {
+      const next = await mutate("/api/admin/songs", {
+        method: "DELETE",
+        body: JSON.stringify({ ids: selectedSongs.map((song) => song.id) }),
+      });
+
+      if (next) {
+        setSelectedSongIds(new Set());
+        setEditingSongId((current) =>
+          current && next.songs.some((song) => song.id === current) ? current : next.songs[0]?.id ?? null,
+        );
+      }
+    } finally {
+      setDeletingSongs(false);
+    }
+  }
+
+  async function toggleSongComplete(songId: number, isComplete: boolean) {
+    setUpdatingSongIds((current) => new Set(current).add(songId));
+
+    try {
+      await mutate(`/api/admin/songs/${songId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isComplete: !isComplete }),
+      });
+    } finally {
+      setUpdatingSongIds((current) => {
+        const next = new Set(current);
+        next.delete(songId);
+        return next;
+      });
+    }
   }
 
   async function refresh() {
@@ -333,14 +438,29 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setCreateModalOpen(true)}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 sm:w-auto"
-              >
-                <Plus aria-hidden="true" size={16} />
-                Nueva cancion
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={deleteSelectedSongs}
+                  disabled={selectedSongs.length === 0 || deletingSongs}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400 disabled:hover:bg-transparent sm:w-auto"
+                >
+                  <Trash2 aria-hidden="true" size={16} />
+                  {deletingSongs
+                    ? "Eliminando..."
+                    : selectedSongs.length > 0
+                      ? `Eliminar (${selectedSongs.length})`
+                      : "Eliminar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateModalOpen(true)}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 sm:w-auto"
+                >
+                  <Plus aria-hidden="true" size={16} />
+                  Nueva cancion
+                </button>
+              </div>
             </div>
 
             <div ref={songSearchRef} className="relative z-30 mt-4 max-w-xl">
@@ -412,7 +532,14 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                             {song.isPublished ? "Publicada" : "Borrador"}
                           </span>
                         </span>
-                        <Music2 aria-hidden="true" size={17} className="shrink-0 text-emerald-700" />
+                        {song.isComplete ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                            <CheckCircle2 aria-hidden="true" size={14} />
+                            Lista
+                          </span>
+                        ) : (
+                          <Music2 aria-hidden="true" size={17} className="shrink-0 text-emerald-700" />
+                        )}
                       </button>
                     ))
                   ) : (
@@ -431,9 +558,32 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               onChange={selectSong}
             />
 
+            {snapshot.songs.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 pt-4">
+                <button
+                  type="button"
+                  onClick={toggleAllSongs}
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+                  aria-pressed={allSongsSelected}
+                >
+                  {allSongsSelected ? (
+                    <CheckSquare2 aria-hidden="true" size={17} className="text-emerald-700" />
+                  ) : (
+                    <Square aria-hidden="true" size={17} />
+                  )}
+                  {allSongsSelected ? "Quitar seleccion" : "Seleccionar todas"}
+                </button>
+                {selectedSongs.length > 0 ? (
+                  <p className="text-sm font-medium text-stone-600">
+                    {selectedSongs.length} {selectedSongs.length === 1 ? "seleccionada" : "seleccionadas"}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="min-w-0 overflow-hidden">
               <div
-                className="mt-4 hidden w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 sm:flex"
+                className="mt-4 flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2"
                 aria-label="Canciones disponibles"
               >
                 {songDraft ? (
@@ -447,26 +597,67 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                   </button>
                 ) : null}
 
-                {snapshot.songs.map((song) => (
-                  <button
-                    key={song.id}
-                    type="button"
-                    onClick={() => {
-                      setSongDraft(null);
-                      setEditingSongId(song.id);
-                    }}
-                    className={`shrink-0 rounded-md border px-3 py-2 text-left text-sm transition ${
-                      !songDraft && editingSongId === song.id
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                        : "border-stone-200 text-stone-700 hover:bg-stone-50"
-                    }`}
-                  >
-                    <span className="block font-semibold">{song.title}</span>
-                    <span className="text-xs text-stone-500">
-                      {song.isPublished ? "Publicada" : "Borrador"}
-                    </span>
-                  </button>
-                ))}
+                {snapshot.songs.map((song) => {
+                  const selected = selectedSongIds.has(song.id);
+                  const active = !songDraft && editingSongId === song.id;
+                  const updating = updatingSongIds.has(song.id);
+
+                  return (
+                    <div
+                      key={song.id}
+                      className={`flex shrink-0 items-stretch overflow-hidden rounded-md border text-sm transition ${
+                        selected
+                          ? "border-rose-300 ring-2 ring-rose-100"
+                          : active
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                            : "border-stone-200 text-stone-700"
+                      }`}
+                    >
+                      <label className="grid min-w-10 cursor-pointer place-items-center border-r border-stone-200 px-2 hover:bg-stone-50">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSongSelection(song.id)}
+                          className="size-4 accent-rose-700"
+                          aria-label={`Seleccionar ${song.title}`}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSongDraft(null);
+                          setEditingSongId(song.id);
+                        }}
+                        className="min-w-36 px-3 py-2 text-left hover:bg-stone-50"
+                      >
+                        <span className="block max-w-56 truncate font-semibold">{song.title}</span>
+                        <span className="text-xs text-stone-500">
+                          {song.isPublished ? "Publicada" : "Borrador"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleSongComplete(song.id, song.isComplete)}
+                        disabled={updating}
+                        className="grid min-w-12 place-items-center border-l border-stone-200 px-2 hover:bg-stone-50 disabled:cursor-wait disabled:opacity-60"
+                        aria-label={song.isComplete ? `Marcar ${song.title} como pendiente` : `Marcar ${song.title} como completa`}
+                        title={song.isComplete ? "Marcar como pendiente" : "Marcar como completa"}
+                      >
+                        {song.isComplete ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                            <CheckCircle2 aria-hidden="true" size={14} />
+                            Lista
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-stone-500">
+                            <Circle aria-hidden="true" size={14} />
+                            Completar
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
