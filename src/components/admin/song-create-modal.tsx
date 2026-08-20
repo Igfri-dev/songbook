@@ -65,6 +65,7 @@ export function SongCreateModal({
       categoryId,
       hasChords,
       isPublished,
+      isComplete: false,
       content: contentFromPlainLyrics(lyrics),
     });
   }

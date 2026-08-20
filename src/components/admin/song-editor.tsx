@@ -22,6 +22,7 @@ export type SongEditorPayload = {
   title: string;
   hasChords: boolean;
   isPublished: boolean;
+  isComplete: boolean;
   categoryId: number | null;
   content: SongContentData;
 };
@@ -41,6 +42,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
   const [title, setTitle] = useState(song?.title ?? initialDraft?.title ?? "");
   const [hasChords, setHasChords] = useState(song?.hasChords ?? initialDraft?.hasChords ?? true);
   const [isPublished, setIsPublished] = useState(song?.isPublished ?? initialDraft?.isPublished ?? false);
+  const [isComplete, setIsComplete] = useState(song?.isComplete ?? initialDraft?.isComplete ?? false);
   const [categoryId, setCategoryId] = useState<number | null>(
     song?.categories[0]?.categoryId ?? initialDraft?.categoryId ?? null,
   );
@@ -87,6 +89,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
         title,
         hasChords,
         isPublished,
+        isComplete,
         categoryId,
         content: withOrderedContent(content),
       });
@@ -374,7 +377,7 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
               onChange={(value) => setCategoryId(value ? Number(value) : null)}
             />
 
-            <div className="grid grid-cols-2 gap-2 self-end">
+            <div className="grid grid-cols-1 gap-2 self-end sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
               <label className="flex h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium text-stone-800">
                 <input
                   type="checkbox"
@@ -392,6 +395,15 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
                   className="size-4 accent-emerald-700"
                 />
                 Publicada
+              </label>
+              <label className="flex h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium text-stone-800">
+                <input
+                  type="checkbox"
+                  checked={isComplete}
+                  onChange={(event) => setIsComplete(event.target.checked)}
+                  className="size-4 accent-emerald-700"
+                />
+                Lista
               </label>
             </div>
           </div>

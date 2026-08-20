@@ -45,6 +45,7 @@ export const songPayloadSchema = z.object({
   title: z.string().min(1).max(180).transform(cleanText),
   hasChords: z.coerce.boolean().default(true),
   isPublished: z.coerce.boolean().default(false),
+  isComplete: z.coerce.boolean().default(false),
   content: songContentSchema,
   categoryId: z.coerce.number().int().positive().nullable().optional(),
 });

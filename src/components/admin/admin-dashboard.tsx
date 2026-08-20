@@ -2,21 +2,23 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronDown,
   CheckCircle2,
   CheckSquare2,
-  Circle,
+  FolderOpen,
   FolderTree,
   Music2,
   Plus,
   RefreshCw,
   Search,
+  Settings2,
   Square,
   Trash2,
   UploadCloud,
   UserPlus,
   X,
 } from "lucide-react";
-import type { AdminSnapshot } from "@/lib/catalog";
+import type { AdminSnapshot, AdminSong } from "@/lib/catalog";
 import { CategoryTreeEditor } from "@/components/admin/category-tree-editor";
 import { SongCreateModal } from "@/components/admin/song-create-modal";
 import { SongEditor, type SongEditorDraft, type SongEditorPayload } from "@/components/admin/song-editor";
@@ -27,6 +29,8 @@ import type { UserRole } from "@/lib/roles";
 import { normalizeSongTitle } from "@/lib/song-title";
 
 type Tab = "songs" | "categories" | "users" | "versions";
+type SongViewMode = "select" | "carousel" | "list" | "folders";
+type SongSortMode = "age" | "alphabetical";
 type ConfirmDialogState = {
   title: string;
   description: string;
@@ -48,6 +52,18 @@ const tabs: { id: Tab; label: string; icon: typeof Music2 }[] = [
   { id: "versions", label: "Versionado", icon: UploadCloud },
 ];
 
+const songViewOptions: CustomSelectOption[] = [
+  { value: "select", label: "Select", description: "Una canción a la vez" },
+  { value: "carousel", label: "Carrusel", description: "Tarjetas en una fila desplazable" },
+  { value: "list", label: "List", description: "Filas compactas dentro de un bloque" },
+  { value: "folders", label: "Folders", description: "Agrupadas por categoría" },
+];
+const songSortOptions: CustomSelectOption[] = [
+  { value: "age", label: "Antigüedad", description: "Más antiguas primero" },
+  { value: "alphabetical", label: "Alfabético", description: "De la A a la Z" },
+];
+const songPreferencesKey = "cancionero-admin-song-list-preferences";
+
 export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnapshot }) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [activeTab, setActiveTab] = useState<Tab>("songs");
@@ -63,8 +79,12 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   const [songSearch, setSongSearch] = useState("");
   const [songSearchOpen, setSongSearchOpen] = useState(false);
   const [selectedSongIds, setSelectedSongIds] = useState<Set<number>>(() => new Set());
-  const [updatingSongIds, setUpdatingSongIds] = useState<Set<number>>(() => new Set());
   const [deletingSongs, setDeletingSongs] = useState(false);
+  const [songSettingsOpen, setSongSettingsOpen] = useState(false);
+  const [songViewMode, setSongViewMode] = useState<SongViewMode>("carousel");
+  const [songSortMode, setSongSortMode] = useState<SongSortMode>("age");
+  const [collapsedSongFolders, setCollapsedSongFolders] = useState<Set<string>>(() => new Set());
+  const [songPreferencesReady, setSongPreferencesReady] = useState(false);
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<number>>(
     () => new Set(initialSnapshot.categories.map((category) => category.id)),
   );
@@ -73,6 +93,15 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
   const editingSong = useMemo(
     () => snapshot.songs.find((song) => song.id === editingSongId) ?? null,
     [snapshot.songs, editingSongId],
+  );
+  const sortedSongs = useMemo(
+    () =>
+      [...snapshot.songs].sort((a, b) =>
+        songSortMode === "alphabetical"
+          ? a.title.localeCompare(b.title, "es", { sensitivity: "base" }) || a.id - b.id
+          : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id,
+      ),
+    [snapshot.songs, songSortMode],
   );
   const matchingSongs = useMemo(() => {
     const query = normalizeSongTitle(songSearch);
@@ -115,14 +144,35 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
             },
           ]
         : []),
-      ...snapshot.songs.map((song) => ({
+      ...sortedSongs.map((song) => ({
         value: String(song.id),
         label: song.title,
-        description: `${song.isPublished ? "Publicada" : "Borrador"}${song.isComplete ? " - Lista" : ""}`,
       })),
     ],
-    [snapshot.songs, songDraft],
+    [sortedSongs, songDraft],
   );
+
+  const songsByFolder = useMemo(() => {
+    const categoryById = new Map(snapshot.categories.map((category) => [category.id, category]));
+    const groups = new Map<string, { key: string; label: string; songs: AdminSong[]; sortOrder: number }>();
+
+    for (const song of sortedSongs) {
+      const category = categoryById.get(song.categories[0]?.categoryId);
+      const key = category ? String(category.id) : "uncategorized";
+      const group = groups.get(key) ?? {
+        key,
+        label: category?.name ?? "Sin categoría",
+        songs: [],
+        sortOrder: category?.sortOrder ?? Number.MAX_SAFE_INTEGER,
+      };
+      group.songs.push(song);
+      groups.set(key, group);
+    }
+
+    return [...groups.values()].sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "es"),
+    );
+  }, [snapshot.categories, sortedSongs]);
 
   useEffect(() => {
     function closeSongSearch(event: PointerEvent) {
@@ -145,6 +195,62 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
       window.removeEventListener("keydown", closeSongSearchFromKeyboard);
     };
   }, []);
+
+  useEffect(() => {
+    const hydrationTimer = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(songPreferencesKey) ?? "null") as {
+          version?: number;
+          view?: SongViewMode;
+          sort?: SongSortMode;
+          orientation?: "horizontal" | "vertical";
+          collapsedFolders?: string[];
+        } | null;
+
+        if (
+          saved?.view === "list" &&
+          saved.version !== 2 &&
+          saved.orientation !== "vertical"
+        ) {
+          setSongViewMode("carousel");
+        } else if (saved?.view && songViewOptions.some((option) => option.value === saved.view)) {
+          setSongViewMode(saved.view);
+        }
+        if (saved?.sort && songSortOptions.some((option) => option.value === saved.sort)) {
+          setSongSortMode(saved.sort);
+        }
+        if (Array.isArray(saved?.collapsedFolders)) {
+          setCollapsedSongFolders(new Set(saved.collapsedFolders));
+        }
+      } catch {
+        // Ignore malformed or unavailable browser storage.
+      } finally {
+        setSongPreferencesReady(true);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(hydrationTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!songPreferencesReady) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        songPreferencesKey,
+        JSON.stringify({
+          version: 2,
+          view: songViewMode,
+          sort: songSortMode,
+          collapsedFolders: [...collapsedSongFolders],
+        }),
+      );
+    } catch {
+      // The list still works when browser storage is unavailable.
+    }
+  }, [collapsedSongFolders, songPreferencesReady, songSortMode, songViewMode]);
 
   async function mutate(url: string, init?: RequestInit) {
     setNoticeDialog(null);
@@ -302,23 +408,6 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     }
   }
 
-  async function toggleSongComplete(songId: number, isComplete: boolean) {
-    setUpdatingSongIds((current) => new Set(current).add(songId));
-
-    try {
-      await mutate(`/api/admin/songs/${songId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isComplete: !isComplete }),
-      });
-    } finally {
-      setUpdatingSongIds((current) => {
-        const next = new Set(current);
-        next.delete(songId);
-        return next;
-      });
-    }
-  }
-
   async function refresh() {
     await mutate("/api/admin/catalog", { method: "GET" });
   }
@@ -407,6 +496,89 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     setEditingSongId(Number(value));
   }
 
+  function renderSongPills(song: AdminSong, compact = false) {
+    return (
+      <span className="flex flex-wrap items-center gap-1.5">
+        <span
+          className={`inline-flex rounded-full px-2 text-xs font-semibold ${compact ? "py-0.5" : "py-1"} ${
+            song.isPublished
+              ? "bg-sky-100 text-sky-800"
+              : "bg-stone-100 text-stone-600"
+          }`}
+        >
+          {song.isPublished ? "Publicada" : "Borrador"}
+        </span>
+        {song.isComplete ? (
+          <span className={`inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 text-xs font-semibold text-emerald-800 ${compact ? "py-0.5" : "py-1"}`}>
+            <CheckCircle2 aria-hidden="true" size={14} />
+            Lista
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  function renderSongRow(song: AdminSong, layout: "horizontal" | "vertical" | "folder" = "vertical") {
+    const selected = selectedSongIds.has(song.id);
+    const active = !songDraft && editingSongId === song.id;
+    const horizontal = layout === "horizontal";
+    const vertical = layout === "vertical";
+
+    return (
+      <div
+        key={song.id}
+        className={`flex min-w-0 items-stretch overflow-hidden text-sm transition ${
+          horizontal ? "shrink-0 rounded-md border" : vertical ? "border-b last:border-b-0" : "rounded-md border"
+        } ${
+          selected
+            ? "border-rose-300 ring-2 ring-rose-100"
+            : active
+              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+              : "border-stone-200 bg-white text-stone-700"
+        }`}
+      >
+        <label className="grid min-w-10 cursor-pointer place-items-center border-r border-stone-200 px-2 hover:bg-stone-50">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => toggleSongSelection(song.id)}
+            className="size-4 accent-rose-700"
+            aria-label={`Seleccionar ${song.title}`}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setSongDraft(null);
+            setEditingSongId(song.id);
+          }}
+          className={`flex min-w-0 flex-1 text-left hover:bg-stone-50 ${
+            horizontal
+              ? "min-w-44 flex-col gap-1.5 px-3 py-2"
+              : "items-center justify-between gap-2 px-3 py-1.5"
+          }`}
+        >
+          <span className={`${horizontal ? "max-w-56" : "min-w-0 flex-1"} truncate font-semibold`}>{song.title}</span>
+          {renderSongPills(song, !horizontal)}
+        </button>
+      </div>
+    );
+  }
+
+  function toggleSongFolder(folderKey: string) {
+    setCollapsedSongFolders((current) => {
+      const next = new Set(current);
+
+      if (next.has(folderKey)) {
+        next.delete(folderKey);
+      } else {
+        next.add(folderKey);
+      }
+
+      return next;
+    });
+  }
+
   return (
     <div className="grid min-w-0 gap-5">
       <div className="grid min-w-0 gap-3 rounded-lg border border-stone-200 bg-white p-3 shadow-sm sm:grid-cols-[minmax(0,24rem)_auto] sm:items-end sm:justify-between">
@@ -441,6 +613,19 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
+                  onClick={() => setSongSettingsOpen((open) => !open)}
+                  aria-expanded={songSettingsOpen}
+                  className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold sm:w-auto ${
+                    songSettingsOpen
+                      ? "border-stone-900 bg-stone-900 text-white"
+                      : "border-stone-300 text-stone-700 hover:bg-stone-50"
+                  }`}
+                >
+                  <Settings2 aria-hidden="true" size={16} />
+                  Configuración
+                </button>
+                <button
+                  type="button"
                   onClick={deleteSelectedSongs}
                   disabled={selectedSongs.length === 0 || deletingSongs}
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-400 disabled:hover:bg-transparent sm:w-auto"
@@ -462,6 +647,23 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                 </button>
               </div>
             </div>
+
+            {songSettingsOpen ? (
+              <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 sm:grid-cols-2">
+                <CustomSelect
+                  label="Modo de visualización"
+                  value={songViewMode}
+                  options={songViewOptions}
+                  onChange={(value) => setSongViewMode(value as SongViewMode)}
+                />
+                <CustomSelect
+                  label="Ordenamiento"
+                  value={songSortMode}
+                  options={songSortOptions}
+                  onChange={(value) => setSongSortMode(value as SongSortMode)}
+                />
+              </div>
+            ) : null}
 
             <div ref={songSearchRef} className="relative z-30 mt-4 max-w-xl">
               <label htmlFor="admin-song-search" className="mb-2 block text-sm font-medium text-stone-800">
@@ -526,20 +728,10 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                         }}
                         className="flex min-h-12 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition hover:bg-stone-50"
                       >
-                        <span className="min-w-0">
+                        <span className="min-w-0 flex-1">
                           <span className="block truncate font-semibold text-stone-900">{song.title}</span>
-                          <span className="block text-xs text-stone-500">
-                            {song.isPublished ? "Publicada" : "Borrador"}
-                          </span>
                         </span>
-                        {song.isComplete ? (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
-                            <CheckCircle2 aria-hidden="true" size={14} />
-                            Lista
-                          </span>
-                        ) : (
-                          <Music2 aria-hidden="true" size={17} className="shrink-0 text-emerald-700" />
-                        )}
+                        {renderSongPills(song)}
                       </button>
                     ))
                   ) : (
@@ -548,15 +740,6 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
                 </div>
               ) : null}
             </div>
-
-            <CustomSelect
-              className="mt-4 sm:hidden"
-              label="Seleccionar cancion"
-              value={songDraft ? "draft" : editingSongId ? String(editingSongId) : ""}
-              options={songOptions}
-              placeholder="Seleccionar cancion"
-              onChange={selectSong}
-            />
 
             {snapshot.songs.length > 0 ? (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 pt-4">
@@ -581,84 +764,76 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
               </div>
             ) : null}
 
-            <div className="min-w-0 overflow-hidden">
-              <div
-                className="mt-4 flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2"
-                aria-label="Canciones disponibles"
-              >
-                {songDraft ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditingSongId(null)}
-                    className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900"
-                  >
-                    <span className="block font-semibold">{songDraft.title}</span>
-                    <span className="text-xs text-emerald-700">Borrador sin guardar</span>
-                  </button>
-                ) : null}
+            <div className="mt-4 min-w-0" aria-label="Canciones disponibles">
+              {songDraft ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingSongId(null)}
+                  className="mb-3 w-full rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900"
+                >
+                  <span className="block font-semibold">{songDraft.title}</span>
+                  <span className="text-xs text-emerald-700">Borrador sin guardar</span>
+                </button>
+              ) : null}
 
-                {snapshot.songs.map((song) => {
-                  const selected = selectedSongIds.has(song.id);
-                  const active = !songDraft && editingSongId === song.id;
-                  const updating = updatingSongIds.has(song.id);
+              {songViewMode === "select" ? (
+                <div className="grid gap-2">
+                  <CustomSelect
+                    label="Seleccionar canción"
+                    value={songDraft ? "draft" : editingSongId ? String(editingSongId) : ""}
+                    options={songOptions}
+                    placeholder="Seleccionar canción"
+                    onChange={selectSong}
+                  />
+                  {editingSong && !songDraft ? renderSongPills(editingSong) : null}
+                </div>
+              ) : null}
 
-                  return (
-                    <div
-                      key={song.id}
-                      className={`flex shrink-0 items-stretch overflow-hidden rounded-md border text-sm transition ${
-                        selected
-                          ? "border-rose-300 ring-2 ring-rose-100"
-                          : active
-                            ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                            : "border-stone-200 text-stone-700"
-                      }`}
-                    >
-                      <label className="grid min-w-10 cursor-pointer place-items-center border-r border-stone-200 px-2 hover:bg-stone-50">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleSongSelection(song.id)}
-                          className="size-4 accent-rose-700"
-                          aria-label={`Seleccionar ${song.title}`}
-                        />
-                      </label>
+              {songViewMode === "carousel" ? (
+                <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
+                  {sortedSongs.map((song) => renderSongRow(song, "horizontal"))}
+                </div>
+              ) : null}
+
+              {songViewMode === "list" ? (
+                <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+                  {sortedSongs.map((song) => renderSongRow(song, "vertical"))}
+                </div>
+              ) : null}
+
+              {songViewMode === "folders" ? (
+                <div className="grid gap-4">
+                  {songsByFolder.map((folder) => (
+                    <section key={folder.key} className="overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
                       <button
                         type="button"
-                        onClick={() => {
-                          setSongDraft(null);
-                          setEditingSongId(song.id);
-                        }}
-                        className="min-w-36 px-3 py-2 text-left hover:bg-stone-50"
+                        onClick={() => toggleSongFolder(folder.key)}
+                        aria-expanded={!collapsedSongFolders.has(folder.key)}
+                        aria-controls={`song-folder-${folder.key}`}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-stone-800 hover:bg-stone-100 ${
+                          collapsedSongFolders.has(folder.key) ? "" : "border-b border-stone-200"
+                        }`}
                       >
-                        <span className="block max-w-56 truncate font-semibold">{song.title}</span>
-                        <span className="text-xs text-stone-500">
-                          {song.isPublished ? "Publicada" : "Borrador"}
+                        <ChevronDown
+                          aria-hidden="true"
+                          size={16}
+                          className={`shrink-0 transition-transform ${collapsedSongFolders.has(folder.key) ? "-rotate-90" : ""}`}
+                        />
+                        <FolderOpen aria-hidden="true" size={17} className="text-emerald-700" />
+                        <span className="min-w-0 flex-1 truncate">{folder.label}</span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-xs text-stone-500">
+                          {folder.songs.length}
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleSongComplete(song.id, song.isComplete)}
-                        disabled={updating}
-                        className="grid min-w-12 place-items-center border-l border-stone-200 px-2 hover:bg-stone-50 disabled:cursor-wait disabled:opacity-60"
-                        aria-label={song.isComplete ? `Marcar ${song.title} como pendiente` : `Marcar ${song.title} como completa`}
-                        title={song.isComplete ? "Marcar como pendiente" : "Marcar como completa"}
-                      >
-                        {song.isComplete ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
-                            <CheckCircle2 aria-hidden="true" size={14} />
-                            Lista
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-stone-500">
-                            <Circle aria-hidden="true" size={14} />
-                            Completar
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                      {!collapsedSongFolders.has(folder.key) ? (
+                        <div id={`song-folder-${folder.key}`} className="grid gap-2 p-2">
+                          {folder.songs.map((song) => renderSongRow(song, "folder"))}
+                        </div>
+                      ) : null}
+                    </section>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 

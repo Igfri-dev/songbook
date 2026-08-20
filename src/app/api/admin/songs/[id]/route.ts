@@ -46,9 +46,17 @@ export async function PUT(
   await transaction(async (tx) => {
     await tx.execute(
       `UPDATE songs
-          SET title = ?, slug = ?, hasChords = ?, isPublished = ?, contentVersion = ?
+          SET title = ?, slug = ?, hasChords = ?, isPublished = ?, isComplete = ?, contentVersion = ?
         WHERE id = ?`,
-      [parsed.data.title, slug, parsed.data.hasChords, parsed.data.isPublished, new Date(), id],
+      [
+        parsed.data.title,
+        slug,
+        parsed.data.hasChords,
+        parsed.data.isPublished,
+        parsed.data.isComplete,
+        new Date(),
+        id,
+      ],
     );
     await tx.execute(
       `INSERT INTO song_contents (songId, contentJson)

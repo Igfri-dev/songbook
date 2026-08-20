@@ -333,7 +333,7 @@ export async function getAdminSnapshot(): Promise<AdminSnapshot> {
               s.createdAt, s.updatedAt, sc.contentJson
          FROM songs s
          LEFT JOIN song_contents sc ON sc.songId = s.id
-        ORDER BY s.updatedAt DESC, s.title ASC`,
+        ORDER BY s.createdAt ASC, s.id ASC`,
     ),
     db.query<CategorySongRow>(
       "SELECT id, categoryId, songId, sortOrder FROM category_songs ORDER BY categoryId ASC, sortOrder ASC",

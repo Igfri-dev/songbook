@@ -49,9 +49,16 @@ export async function POST(request: Request) {
 
   await transaction(async (tx) => {
     const song = await tx.execute(
-      `INSERT INTO songs (title, slug, hasChords, isPublished, contentVersion)
-       VALUES (?, ?, ?, ?, ?)`,
-      [parsed.data.title, slug, parsed.data.hasChords, parsed.data.isPublished, now],
+      `INSERT INTO songs (title, slug, hasChords, isPublished, isComplete, contentVersion)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        parsed.data.title,
+        slug,
+        parsed.data.hasChords,
+        parsed.data.isPublished,
+        parsed.data.isComplete,
+        now,
+      ],
     );
     const songId = insertedId(song);
 
