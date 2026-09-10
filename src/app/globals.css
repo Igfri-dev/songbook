@@ -174,7 +174,7 @@ textarea {
 .chord-token {
   position: absolute;
   top: 0;
-  left: max(0px, min(calc(var(--at) * 1ch), calc(100% - 6rem)));
+  left: max(0px, min(calc(var(--at) * 1ch), calc(100% - 1ch)));
   border: 0;
   color: #047857;
   font-size: 0.82rem;
@@ -193,7 +193,7 @@ textarea {
   padding: 0.08rem 0.22rem;
   cursor: grab;
   touch-action: none;
-  transform: translateX(-0.12rem);
+  left: calc(var(--at) * 1ch);
 }
 
 .dark .chord-token {

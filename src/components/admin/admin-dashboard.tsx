@@ -325,6 +325,29 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
     }
   }
 
+  async function deleteCategory(categoryId: number) {
+    const category = snapshot.categories.find((item) => item.id === categoryId);
+    if (!category) return;
+
+    const songCount = snapshot.songs.filter((song) =>
+      song.categories.some((link) => link.categoryId === categoryId),
+    ).length;
+    const hasChildren = snapshot.categories.some((item) => item.parentId === categoryId);
+    const confirmed = await requestConfirmation({
+      title: "Eliminar categoría",
+      description: `¿Eliminar definitivamente la categoría "${category.name}"? ${
+        songCount > 0
+          ? `Tiene ${songCount} ${songCount === 1 ? "canción asociada" : "canciones asociadas"}. Las canciones se conservarán y solo se quitarán de esta categoría. `
+          : ""
+      }${hasChildren ? "Sus subcategorías se conservarán en el nivel principal. " : ""}Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar categoría",
+      cancelLabel: "Cancelar",
+    });
+    if (!confirmed) return;
+
+    await mutate(`/api/admin/categories/${categoryId}`, { method: "DELETE" });
+  }
+
   async function deleteSong(songId: number) {
     const song = snapshot.songs.find((item) => item.id === songId);
     const confirmed = await requestConfirmation({
@@ -884,6 +907,7 @@ export function AdminDashboard({ initialSnapshot }: { initialSnapshot: AdminSnap
           title="Categorias y catalogo"
           expandedCategoryIds={expandedCategoryIds}
           onExpandedCategoryIdsChange={setExpandedCategoryIds}
+          onDeleteCategory={deleteCategory}
           onCreateCategory={async (name, parentId) => {
             await mutate("/api/admin/categories", {
               method: "POST",

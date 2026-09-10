@@ -53,7 +53,14 @@ export async function DELETE(
   }
 
   const id = idSchema.parse((await params).id);
-  await db.execute("DELETE FROM song_categories WHERE id = ?", [id]).catch(() => null);
+  try {
+    const result = await db.execute("DELETE FROM song_categories WHERE id = ?", [id]);
+    if (!result.affectedRows) {
+      return Response.json({ error: "La categoría ya no existe." }, { status: 404 });
+    }
+  } catch {
+    return Response.json({ error: "No se pudo eliminar la categoría. Intenta nuevamente." }, { status: 500 });
+  }
 
   return Response.json(await getAdminSnapshot());
 }

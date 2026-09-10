@@ -184,8 +184,13 @@ export function SongEditor({ song, draft, categories, onSave, onDelete }: SongEd
               return line;
             }
 
-            const direction = at >= (line.chords[chordIndex]?.at ?? 0) ? "right" : "left";
-            return moveChordWithCollision(line, chordIndex, at, direction, maxAt);
+            // Manual placement follows the pointer without collision correction moving it back.
+            return {
+              ...line,
+              chords: line.chords.map((chord, index) =>
+                index === chordIndex ? { ...chord, at: clamp(at, 0, maxAt) } : chord,
+              ),
+            };
           }),
         };
       }),
@@ -651,7 +656,10 @@ function withOrderedContent(content: SongContentData): SongContentData {
   return {
     sections: content.sections.map((section) => ({
       ...section,
-      lines: section.lines.map((line) => preventChordOverlap(line)),
+      lines: section.lines.map((line) => ({
+        ...line,
+        chords: [...line.chords].sort((a, b) => a.at - b.at),
+      })),
     })),
   };
 }

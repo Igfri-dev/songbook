@@ -79,7 +79,6 @@ type InteractiveSongPreviewProps = {
   onSectionCopyRequest: (mode: SectionCopyMode, targetSectionIndex: number) => void;
 };
 
-let measureCanvas: HTMLCanvasElement | null = null;
 
 export function InteractiveSongPreview({
   content,
@@ -123,12 +122,19 @@ export function InteractiveSongPreview({
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
 
+    const token = event.currentTarget;
+    const grabOffset = event.clientX - token.getBoundingClientRect().left;
+    const charWidth = getCharWidth(lineElement);
+    const tokenWidth = token.getBoundingClientRect().width;
     const startX = event.clientX;
     const startY = event.clientY;
     let didDrag = false;
 
     const updateFromPointer = (pointerEvent: Pick<PointerEvent, "clientX">) => {
-      const position = pointerToAt(pointerEvent.clientX, lineElement);
+      const rect = lineElement.getBoundingClientRect();
+      const maxAt = Math.min(240, Math.max(0, (rect.width - tokenWidth) / charWidth));
+      const at = clamp((pointerEvent.clientX - grabOffset - rect.left) / charWidth, 0, maxAt);
+      const position = { at, maxAt };
       onChordMove(sectionIndex, lineIndex, chordIndex, position.at, position.maxAt);
     };
     const move = (pointerEvent: PointerEvent) => {
@@ -154,6 +160,10 @@ export function InteractiveSongPreview({
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
+
+      if (didDrag && pointerEvent.type === "pointerup") {
+        updateFromPointer(pointerEvent);
+      }
 
       if (!didDrag) {
         const currentAt =
@@ -495,16 +505,14 @@ function pointerToAt(clientX: number, lineElement: HTMLElement) {
 }
 
 function getCharWidth(element: HTMLElement) {
-  const style = window.getComputedStyle(element);
-  measureCanvas ??= document.createElement("canvas");
-  const context = measureCanvas.getContext("2d");
-
-  if (!context) {
-    return Number.parseFloat(style.fontSize) * 0.6 || 8;
-  }
-
-  context.font = style.font;
-  return context.measureText("0").width || Number.parseFloat(style.fontSize) * 0.6 || 8;
+  // Measure the same CSS ch unit used by the rendered chord, including font scaling.
+  const probe = document.createElement("span");
+  probe.className = "chord-token";
+  probe.style.cssText = "position:absolute;visibility:hidden;width:100ch;max-width:none;padding:0;border:0";
+  element.appendChild(probe);
+  const width = probe.getBoundingClientRect().width / 100;
+  probe.remove();
+  return width || 8;
 }
 
 function clamp(value: number, min: number, max: number) {

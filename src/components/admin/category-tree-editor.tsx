@@ -69,6 +69,7 @@ type CategoryTreeEditorProps = {
   onExpandedCategoryIdsChange: (ids: Set<number>) => void;
   onCreateCategory: (name: string, parentId: number | null) => Promise<void>;
   onAssignSong: (songId: number, categoryId: number, categorySongId?: number) => Promise<void>;
+  onDeleteCategory: (id: number) => Promise<void>;
   onRemoveAssignment: (categorySongId: number) => Promise<void>;
   onSaveOrder: (payload: OrderPayload) => Promise<void>;
 };
@@ -80,6 +81,7 @@ export function CategoryTreeEditor({
   onExpandedCategoryIdsChange,
   onCreateCategory,
   onAssignSong,
+  onDeleteCategory,
   onRemoveAssignment,
   onSaveOrder,
 }: CategoryTreeEditorProps) {
@@ -361,6 +363,7 @@ export function CategoryTreeEditor({
                 selectedCategorySongId={selectedCategorySongId}
                 expandedCategoryIds={expandedCategoryIds}
                 onToggleCategory={toggleCategory}
+                onDeleteCategory={onDeleteCategory}
                 onRemoveAssignment={onRemoveAssignment}
               />
             ))
@@ -511,6 +514,7 @@ function EditableCategoryNode({
   selectedCategorySongId,
   expandedCategoryIds,
   onToggleCategory,
+  onDeleteCategory,
   onRemoveAssignment,
 }: {
   node: TreeNode;
@@ -524,6 +528,7 @@ function EditableCategoryNode({
   selectedCategorySongId: number | null;
   expandedCategoryIds: Set<number>;
   onToggleCategory: (id: number) => void;
+  onDeleteCategory: (id: number) => Promise<void>;
   onRemoveAssignment: (id: number) => Promise<void>;
 }) {
   const expanded = expandedCategoryIds.has(node.id);
@@ -586,6 +591,15 @@ function EditableCategoryNode({
           aria-label="Bajar categoria"
         >
           <ArrowDown aria-hidden="true" size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => void onDeleteCategory(node.id)}
+          className="grid size-8 shrink-0 place-items-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
+          aria-label={`Eliminar categoría ${node.name}`}
+          title="Eliminar categoría"
+        >
+          <Trash2 aria-hidden="true" size={14} />
         </button>
       </div>
 
@@ -656,6 +670,7 @@ function EditableCategoryNode({
               selectedCategorySongId={selectedCategorySongId}
               expandedCategoryIds={expandedCategoryIds}
               onToggleCategory={onToggleCategory}
+              onDeleteCategory={onDeleteCategory}
               onRemoveAssignment={onRemoveAssignment}
             />
           ))}

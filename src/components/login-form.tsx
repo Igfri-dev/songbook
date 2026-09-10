@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { ActionModal } from "@/components/ui/action-modal";
 
+const subscribeToHydration = () => () => {};
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -16,27 +19,38 @@ export function LoginForm() {
 
   return (
     <form
+      method="post"
       className="grid gap-4"
       onSubmit={(event) => {
         event.preventDefault();
+        if (!hydrated || isPending) return;
         setError("");
         const formData = new FormData(event.currentTarget);
 
         startTransition(async () => {
-          const result = await signIn("credentials", {
-            identifier: String(formData.get("identifier") ?? ""),
-            password: String(formData.get("password") ?? ""),
-            redirect: false,
-            callbackUrl,
-          });
+          try {
+            const requestedUrl = new URL(callbackUrl, window.location.origin);
+            const destination = requestedUrl.origin === window.location.origin
+              ? `${requestedUrl.pathname}${requestedUrl.search}${requestedUrl.hash}`
+              : "/admin";
+            const result = await signIn("credentials", {
+              identifier: String(formData.get("identifier") ?? ""),
+              password: String(formData.get("password") ?? ""),
+              redirect: false,
+              callbackUrl: destination,
+            });
 
-          if (result?.error) {
-            setError("Email, usuario o password incorrectos.");
-            return;
+            if (!result?.ok || result.error) {
+              setError("Email, usuario o password incorrectos.");
+              return;
+            }
+
+            // Keep navigation on this app's origin, even when the configured auth URL is stale.
+            router.push(destination);
+            router.refresh();
+          } catch {
+            setError("No se pudo conectar con el servidor. Intenta nuevamente.");
           }
-
-          router.push(result?.url ?? callbackUrl);
-          router.refresh();
         });
       }}
     >
@@ -66,12 +80,16 @@ export function LoginForm() {
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={!hydrated || isPending}
         className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-400"
       >
         <LogIn aria-hidden="true" size={17} />
-        {isPending ? "Entrando..." : "Entrar"}
+        {!hydrated ? "Cargando..." : isPending ? "Entrando..." : "Entrar"}
       </button>
+
+      <noscript>
+        <p className="text-sm text-rose-700">Activa JavaScript para iniciar sesión.</p>
+      </noscript>
 
       <ActionModal
         open={Boolean(error)}

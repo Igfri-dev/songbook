@@ -7,7 +7,7 @@ const cleanText = (value: string) =>
 
 export const chordSchema = z.object({
   chord: z.string().min(1).max(24).transform(cleanText),
-  at: z.coerce.number().int().min(0).max(240),
+  at: z.coerce.number().min(0).max(240),
 });
 
 export const songLineSchema = z.object({

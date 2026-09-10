@@ -172,6 +172,7 @@ export function ChordLineEditor({
                 <input
                   value={chord.at}
                   type="number"
+                  step="any"
                   min={0}
                   max={240}
                   onChange={(event) => updateChord(index, { at: Number(event.target.value) })}
